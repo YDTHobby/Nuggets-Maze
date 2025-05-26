@@ -287,6 +287,31 @@
       }
     }
   });
+// === Touch Swipe Controls ===
+let touchStartX = 0, touchStartY = 0;
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchend', e => {
+  if (e.changedTouches.length === 1) {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    if (Math.max(absDx, absDy) > 30) {
+      if (absDx > absDy) {
+        inputBuf = dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 }; // Left or Right
+      } else {
+        inputBuf = dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 }; // Up or Down
+      }
+    }
+  }
+});
 
   // === Movement Helper ===
   function canMove(x, y, forEnemy = false) {
