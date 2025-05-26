@@ -8,18 +8,18 @@
       margin: 0;
       background-color: #fef6e4;
       font-family: 'Arial', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
     }
     canvas {
       display: block;
-      margin: 0 auto;
       background-color: #fff8dc;
       border: 2px solid #333;
     }
-    #startButton {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+    #startButton, #playAgainButton, #tryAgainButton { /* These HTML buttons are now mostly conceptual for the canvas buttons */
       padding: 16px 32px;
       font-size: 20px;
       background-color: #f9c5d1;
@@ -27,19 +27,30 @@
       border-radius: 8px;
       cursor: pointer;
       z-index: 10;
+      margin-top: 20px; /* Added for spacing if we keep an HTML start button */
+    }
+    #startButtonContainer { /* To manage visibility of HTML start button */
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 10;
     }
   </style>
 </head>
 <body>
-  <button id="startButton">Start Game</button>
+  <div id="startButtonContainer">
+    <button id="startButton" disabled>Loading Assets...</button>
+  </div>
   <canvas id="gameCanvas" width="512" height="512"></canvas>
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
     const startButton = document.getElementById("startButton");
+    const startButtonContainer = document.getElementById("startButtonContainer");
 
     const TILE_SIZE = 32;
-    const FRAME_DELAY = 1000 / 60;
+    const FRAME_DELAY = 1000 / 60; // Target 60 FPS
     let lastFrameTime = 0;
 
     const map = [
@@ -60,75 +71,125 @@
       "################"
     ];
 
-    const nuggetImgs = {
-      up: new Image(),
-      down: new Image(),
-      left: new Image(),
-      right: new Image(),
-      cheer1: new Image(),
-      cheer2: new Image(),
-      cheer3: new Image()
-    };
-    nuggetImgs.up.src = "nugget_up.png";
-    nuggetImgs.down.src = "nugget_down.png";
-    nuggetImgs.left.src = "nugget_left.png";
-    nuggetImgs.right.src = "nugget_right.png";
-    nuggetImgs.cheer1.src = "nugget_cheer1.png";
-    nuggetImgs.cheer2.src = "nugget_cheer2.png";
-    nuggetImgs.cheer3.src = "nugget_cheer3.png";
-
-    const catImg = new Image();
-    catImg.src = "cat_enemy.png";
-
-    const yarnImg = new Image();
-    yarnImg.src = "yarn_blue.png";
-    const specialYarnImg = new Image();
-    specialYarnImg.src = "yarn_gold.png";
-    const bgWin = new Image();
-    bgWin.src = "win_background.png";
-
-    const sfxYarn = new Audio("yarn_collect.mp3");
-    const sfxSpecial = new Audio("powerup.mp3");
-    const sfxInvincible = new Audio("invincible_loop.mp3");
-    const sfxStart = new Audio("start_game.mp3");
-    const sfxGameWon = new Audio("game_won.mp3");
-    const sfxMeow = new Audio("meow.mp3");
-    sfxInvincible.loop = true;
-
-    const bgMusic = new Audio("bg_music.mp3");
-    bgMusic.loop = true;
-    bgMusic.volume = 0.3;
-
-    let player = {
-      x: TILE_SIZE * 1,
-      y: TILE_SIZE * 3,
-      dirX: 1,
-      dirY: 0,
-      nextDirX: 0,
-      nextDirY: 0,
-      direction: "right",
-      speed: 1.9,
-      invincible: 0
+    // --- ASSET MANAGEMENT ---
+    const assets = {
+      images: {
+        nugget_up: "nugget_up.png",
+        nugget_down: "nugget_down.png",
+        nugget_left: "nugget_left.png",
+        nugget_right: "nugget_right.png",
+        nugget_cheer1: "nugget_cheer1.png",
+        nugget_cheer2: "nugget_cheer2.png",
+        nugget_cheer3: "nugget_cheer3.png",
+        cat_enemy: "cat_enemy.png",
+        yarn_blue: "yarn_blue.png",
+        yarn_gold: "yarn_gold.png",
+        win_background: "win_background.png"
+      },
+      audio: {
+        sfxYarn: "yarn_collect.mp3",
+        sfxSpecial: "powerup.mp3",
+        sfxInvincible: "invincible_loop.mp3",
+        sfxStart: "start_game.mp3",
+        sfxGameWon: "game_won.mp3",
+        sfxMeow: "meow.mp3",
+        bgMusic: "bg_music.mp3"
+      }
     };
 
+    const loadedAssets = {
+      images: {},
+      audio: {}
+    };
+    let assetsToLoadCount = 0;
+    let assetsLoadedCount = 0;
+
+    function loadAssets() {
+      gameState = 'LOADING';
+      // Load Images
+      for (const key in assets.images) {
+        assetsToLoadCount++;
+        const img = new Image();
+        img.src = assets.images[key];
+        loadedAssets.images[key] = img;
+        img.onload = () => {
+          assetsLoadedCount++;
+          checkAllAssetsLoaded();
+        };
+        img.onerror = () => {
+            console.error("Error loading image:", assets.images[key]);
+            assetsLoadedCount++; // Count as loaded to not stall indefinitely
+            checkAllAssetsLoaded();
+        }
+      }
+      // Load Audio
+      for (const key in assets.audio) {
+        assetsToLoadCount++;
+        const audio = new Audio();
+        audio.src = assets.audio[key];
+        loadedAssets.audio[key] = audio;
+        audio.oncanplaythrough = () => {
+          assetsLoadedCount++;
+          checkAllAssetsLoaded();
+        };
+        audio.onerror = () => {
+            console.error("Error loading audio:", assets.audio[key]);
+            assetsLoadedCount++; // Count as loaded
+            checkAllAssetsLoaded();
+        }
+      }
+      // Specific audio settings
+      loadedAssets.audio.sfxInvincible.loop = true;
+      loadedAssets.audio.bgMusic.loop = true;
+      loadedAssets.audio.bgMusic.volume = 0.3;
+    }
+
+    function checkAllAssetsLoaded() {
+      if (assetsLoadedCount >= assetsToLoadCount) {
+        gameState = 'MENU';
+        startButton.disabled = false;
+        startButton.textContent = "Start Game";
+        console.log("All assets loaded!");
+      }
+    }
+
+    // --- GAME STATE & VARIABLES ---
+    let gameState = 'LOADING'; // LOADING, MENU, PLAYING, GAME_OVER, WIN
+    let player;
     let enemies = [];
     let yarns = [];
     let specialYarns = [];
-    let confetti = [];
     let score = 0;
-    let level = 1;
-    let timer = 0;
-    let gameStarted = false;
-    let gameWon = false;
+    // let level = 1; // Currently static level
     let winAnimationCounter = 0;
+    const ENEMY_RESPAWN_TIME = 5 * 60; // 5 seconds at 60fps
+
+    const playAgainButtonRect = { x: canvas.width / 2 - 100, y: canvas.height - 100, width: 200, height: 50 };
+
+    // --- INITIALIZATION ---
+    function initPlayer() {
+      player = {
+        x: TILE_SIZE * 1,
+        y: TILE_SIZE * 3,
+        dirX: 0, // Start stationary, let first input decide
+        dirY: 0,
+        nextDirX: 1, // Default to wanting to move right
+        nextDirY: 0,
+        direction: "right",
+        speed: 1.9,
+        invincible: 0,
+        currentCheerFrame: 0,
+        cheerFrameTimer: 0
+      };
+    }
 
     function initYarns() {
       yarns = [];
       specialYarns = [];
-      for (let y = 0; y < map.length; y++) {
-        for (let x = 0; x < map[y].length; x++) {
-          if (map[y][x] === '.') yarns.push({ x, y });
-          if (map[y][x] === 'o') specialYarns.push({ x, y });
+      for (let r = 0; r < map.length; r++) {
+        for (let c = 0; c < map[r].length; c++) {
+          if (map[r][c] === '.') yarns.push({ x: c, y: r });
+          if (map[r][c] === 'o') specialYarns.push({ x: c, y: r });
         }
       }
     }
@@ -136,65 +197,124 @@
     function spawnEnemies(count) {
       enemies = [];
       for (let i = 0; i < count; i++) {
+        const spawnX = TILE_SIZE * (7 + (i % 2));
+        const spawnY = TILE_SIZE * 7;
         enemies.push({
-          x: TILE_SIZE * (7 + (i % 2)),
-          y: TILE_SIZE * 7,
-          speed: 1.9,
+          x: spawnX,
+          y: spawnY,
+          initialX: spawnX, // For respawning
+          initialY: spawnY, // For respawning
+          speed: 1.7, // Slightly slower than player
           alive: true,
-          respawn: 0
+          respawnTimer: 0
         });
       }
     }
 
-    function canMove(x, y) {
-      const col = Math.floor(x / TILE_SIZE);
-      const row = Math.floor(y / TILE_SIZE);
-      return map[row] && map[row][col] !== '#';
+    function resetGame() {
+      initPlayer();
+      initYarns();
+      spawnEnemies(1); // Currently hardcoded to 1 enemy
+      score = 0;
+      winAnimationCounter = 0;
+      if (loadedAssets.audio.sfxInvincible) loadedAssets.audio.sfxInvincible.pause();
+      if (loadedAssets.audio.bgMusic) {
+        loadedAssets.audio.bgMusic.currentTime = 0;
+        loadedAssets.audio.bgMusic.play().catch(e => console.error("Error playing bg music:", e));
+      }
     }
 
-    function updatePlayer() {
-      const cx = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
-      const cy = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
+    // --- COLLISION & MOVEMENT ---
+    function canMove(x, y, objectWidth = TILE_SIZE, objectHeight = TILE_SIZE) {
+        // Check all four corners of the object
+        const pointsToCheck = [
+            {x: x, y: y},                                 // Top-left
+            {x: x + objectWidth -1, y: y},                // Top-right
+            {x: x, y: y + objectHeight -1},               // Bottom-left
+            {x: x + objectWidth-1, y: y + objectHeight-1} // Bottom-right
+        ];
 
-      const aligned = Math.abs(player.x % TILE_SIZE - TILE_SIZE / 2) < 2 && Math.abs(player.y % TILE_SIZE - TILE_SIZE / 2) < 2;
+        for (const point of pointsToCheck) {
+            const col = Math.floor(point.x / TILE_SIZE);
+            const row = Math.floor(point.y / TILE_SIZE);
 
-      if (aligned) {
-        if (canMove((cx + player.nextDirX) * TILE_SIZE, (cy + player.nextDirY) * TILE_SIZE)) {
-          player.dirX = player.nextDirX;
-          player.dirY = player.nextDirY;
+            if (row < 0 || row >= map.length || col < 0 || col >= map[0].length || map[row][col] === '#') {
+                return false; // Collision with wall or out of bounds
+            }
         }
-      }
+        return true; // No collision
+    }
 
-      const nextX = player.x + player.dirX * player.speed;
-      const nextY = player.y + player.dirY * player.speed;
-      if (canMove(nextX, nextY)) {
+
+    // --- UPDATE LOGIC ---
+    function updatePlayer() {
+      // Attempt to change direction if aligned
+      const playerCenterX = player.x + TILE_SIZE / 2;
+      const playerCenterY = player.y + TILE_SIZE / 2;
+      const tileX = Math.floor(playerCenterX / TILE_SIZE);
+      const tileY = Math.floor(playerCenterY / TILE_SIZE);
+
+      // Check if player is reasonably centered in a tile to allow turning
+      const isAlignedHorizontally = Math.abs(player.x - (tileX * TILE_SIZE)) < player.speed * 1.5;
+      const isAlignedVertically = Math.abs(player.y - (tileY * TILE_SIZE)) < player.speed * 1.5;
+
+      if ((player.nextDirX !== 0 && isAlignedVertically) || (player.nextDirY !== 0 && isAlignedHorizontally)) {
+          const potentialNextTileX = tileX + player.nextDirX;
+          const potentialNextTileY = tileY + player.nextDirY;
+          if (map[potentialNextTileY] && map[potentialNextTileY][potentialNextTileX] !== '#') {
+              player.dirX = player.nextDirX;
+              player.dirY = player.nextDirY;
+              // Snap to grid when turning
+              if (player.dirX !== 0) player.y = tileY * TILE_SIZE;
+              if (player.dirY !== 0) player.x = tileX * TILE_SIZE;
+          }
+      }
+      
+      // Try to move in current direction
+      let nextX = player.x + player.dirX * player.speed;
+      let nextY = player.y + player.dirY * player.speed;
+
+      if (canMove(nextX, player.y)) {
         player.x = nextX;
-        player.y = nextY;
+      } else if (player.dirX !== 0) { // Hit wall horizontally
+        player.x = (player.dirX > 0) ? (Math.ceil(player.x / TILE_SIZE) * TILE_SIZE) - TILE_SIZE : Math.floor(player.x / TILE_SIZE) * TILE_SIZE;
       }
 
+      if (canMove(player.x, nextY)) { // Now check Y separately
+        player.y = nextY;
+      } else if (player.dirY !== 0) { // Hit wall vertically
+         player.y = (player.dirY > 0) ? (Math.ceil(player.y / TILE_SIZE) * TILE_SIZE) - TILE_SIZE : Math.floor(player.y / TILE_SIZE) * TILE_SIZE;
+      }
+
+
+      // Update player sprite direction
       if (player.dirX === 1) player.direction = "right";
       else if (player.dirX === -1) player.direction = "left";
       else if (player.dirY === -1) player.direction = "up";
       else if (player.dirY === 1) player.direction = "down";
 
-      const px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
-      const py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
+      // Yarn collection
+      const playerTileX = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+      const playerTileY = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
 
-      yarns = yarns.filter(dot => {
-        if (dot.x === px && dot.y === py) {
+      yarns = yarns.filter(yarn => {
+        if (yarn.x === playerTileX && yarn.y === playerTileY) {
           score++;
-          sfxYarn.play();
+          if (loadedAssets.audio.sfxYarn) {
+            loadedAssets.audio.sfxYarn.currentTime = 0;
+            loadedAssets.audio.sfxYarn.play().catch(e => console.error("Error playing sfxYarn:", e));
+          }
           return false;
         }
         return true;
       });
 
-      specialYarns = specialYarns.filter(dot => {
-        if (dot.x === px && dot.y === py) {
-          player.invincible = 360;
+      specialYarns = specialYarns.filter(specialYarn => {
+        if (specialYarn.x === playerTileX && specialYarn.y === playerTileY) {
+          player.invincible = 360; // 6 seconds at 60fps
           score += 5;
-          sfxSpecial.play();
-          sfxInvincible.play();
+          if (loadedAssets.audio.sfxSpecial) loadedAssets.audio.sfxSpecial.play().catch(e => console.error("Error playing sfxSpecial:", e));
+          if (loadedAssets.audio.sfxInvincible) loadedAssets.audio.sfxInvincible.play().catch(e => console.error("Error playing sfxInvincible:", e));
           return false;
         }
         return true;
@@ -202,118 +322,321 @@
 
       if (player.invincible > 0) {
         player.invincible--;
-        if (player.invincible === 0) sfxInvincible.pause();
-      }
-    }
-
-    function drawMap() {
-      for (let y = 0; y < map.length; y++) {
-        for (let x = 0; x < map[y].length; x++) {
-          ctx.fillStyle = map[y][x] === '#' ? "#d9d4b0" : "#fff8dc";
-          ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        if (player.invincible === 0) {
+          if (loadedAssets.audio.sfxInvincible) loadedAssets.audio.sfxInvincible.pause();
         }
       }
-    }
 
-    function drawYarns() {
-      yarns.forEach(dot => {
-        ctx.drawImage(yarnImg, dot.x * TILE_SIZE + 8, dot.y * TILE_SIZE + 8, 16, 16);
-      });
-      specialYarns.forEach(dot => {
-        ctx.drawImage(specialYarnImg, dot.x * TILE_SIZE + 8, dot.y * TILE_SIZE + 8, 16, 16);
-      });
-    }
-
-    function drawPlayer() {
-      if (player.invincible > 0) {
-        ctx.fillStyle = "rgba(255, 255, 0, 0.3)";
-        ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
+      // Check win condition
+      if (yarns.length === 0 && specialYarns.length === 0) {
+        gameState = 'WIN';
+        if (loadedAssets.audio.bgMusic) loadedAssets.audio.bgMusic.pause();
+        if (loadedAssets.audio.sfxGameWon) loadedAssets.audio.sfxGameWon.play().catch(e => console.error("Error playing sfxGameWon:", e));
       }
-      ctx.drawImage(nuggetImgs[player.direction], player.x, player.y, TILE_SIZE, TILE_SIZE);
-    }
-
-    function drawEnemies() {
-      enemies.forEach(e => {
-        if (e.alive) ctx.drawImage(catImg, e.x, e.y, TILE_SIZE, TILE_SIZE);
-      });
     }
 
     function updateEnemies() {
-      enemies.forEach(e => {
-        const dx = player.x - e.x;
-        const dy = player.y - e.y;
-        let moveX = 0, moveY = 0;
-        if (Math.abs(dx) > Math.abs(dy)) moveX = Math.sign(dx);
-        else moveY = Math.sign(dy);
-
-        const nextX = e.x + moveX * e.speed;
-        const nextY = e.y + moveY * e.speed;
-
-        if (canMove(nextX, nextY)) {
-          e.x = nextX;
-          e.y = nextY;
+      enemies.forEach(enemy => {
+        if (!enemy.alive) {
+          enemy.respawnTimer--;
+          if (enemy.respawnTimer <= 0) {
+            enemy.x = enemy.initialX;
+            enemy.y = enemy.initialY;
+            enemy.alive = true;
+          }
+          return; // Skip movement and collision if not alive
         }
 
-        const px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
-        const py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
-        const ex = Math.floor((e.x + TILE_SIZE / 2) / TILE_SIZE);
-        const ey = Math.floor((e.y + TILE_SIZE / 2) / TILE_SIZE);
+        // Simple chase AI
+        const dx = player.x - enemy.x;
+        const dy = player.y - enemy.y;
+        let moveX = 0, moveY = 0;
 
-        if (px === ex && py === ey) {
+        if (Math.abs(dx) > Math.abs(dy)) { // Prefer horizontal movement if distance is greater
+          moveX = Math.sign(dx);
+        } else { // Prefer vertical movement
+          moveY = Math.sign(dy);
+        }
+        
+        // Try preferred direction first
+        let nextX = enemy.x + moveX * enemy.speed;
+        let nextY = enemy.y + moveY * enemy.speed;
+
+        let moved = false;
+        if (moveX !== 0 && canMove(nextX, enemy.y)) {
+            enemy.x = nextX;
+            moved = true;
+        } else if (moveY !== 0 && canMove(enemy.x, nextY)) {
+            enemy.y = nextY;
+            moved = true;
+        } else { // If preferred direction is blocked, try the other
+            if (moveX === 0) { // Original preference was vertical
+                moveX = Math.sign(dx); // Now try horizontal
+                nextX = enemy.x + moveX * enemy.speed;
+                if (canMove(nextX, enemy.y)) enemy.x = nextX;
+            } else { // Original preference was horizontal
+                moveY = Math.sign(dy); // Now try vertical
+                nextY = enemy.y + moveY * enemy.speed;
+                if (canMove(enemy.x, nextY)) enemy.y = nextY;
+            }
+        }
+
+
+        // Collision with player
+        const playerTileX = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+        const playerTileY = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
+        const enemyTileX = Math.floor((enemy.x + TILE_SIZE / 2) / TILE_SIZE);
+        const enemyTileY = Math.floor((enemy.y + TILE_SIZE / 2) / TILE_SIZE);
+
+        if (playerTileX === enemyTileX && playerTileY === enemyTileY) {
           if (player.invincible > 0) {
-            e.alive = false;
-            sfxMeow.play();
+            enemy.alive = false;
+            enemy.respawnTimer = ENEMY_RESPAWN_TIME;
+            score += 10; // Bonus for eating enemy
+            if (loadedAssets.audio.sfxMeow) loadedAssets.audio.sfxMeow.play().catch(e => console.error("Error playing sfxMeow:", e));
           } else {
-            alert("Game Over! Nugget got caught!");
-            window.location.reload();
+            gameState = 'GAME_OVER';
+            if (loadedAssets.audio.bgMusic) loadedAssets.audio.bgMusic.pause();
+            if (loadedAssets.audio.sfxInvincible) loadedAssets.audio.sfxInvincible.pause();
+            // Could play a game over sound here
           }
         }
       });
     }
 
-    document.addEventListener("keydown", e => {
-      if (e.key === "ArrowUp") { player.nextDirX = 0; player.nextDirY = -1; }
-      if (e.key === "ArrowDown") { player.nextDirX = 0; player.nextDirY = 1; }
-      if (e.key === "ArrowLeft") { player.nextDirX = -1; player.nextDirY = 0; }
-      if (e.key === "ArrowRight") { player.nextDirX = 1; player.nextDirY = 0; }
-    });
-
-    function gameLoop(timestamp) {
-      const delta = timestamp - lastFrameTime;
-      if (delta < FRAME_DELAY) {
-        requestAnimationFrame(gameLoop);
-        return;
-      }
-      lastFrameTime = timestamp;
-
-      if (yarns.length === 0 && specialYarns.length === 0 && !gameWon) {
-        gameWon = true;
-        winAnimationCounter = 0;
-        sfxGameWon.play();
-        return;
-      }
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawMap();
+    function updateGame() {
       updatePlayer();
       updateEnemies();
+    }
+
+    // --- DRAW LOGIC ---
+    function drawMap() {
+      for (let r = 0; r < map.length; r++) {
+        for (let c = 0; c < map[r].length; c++) {
+          ctx.fillStyle = map[r][c] === '#' ? "#d9d4b0" : "#fff8dc"; // Wall vs Floor
+          ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+      }
+    }
+
+    function drawYarns() {
+      yarns.forEach(yarn => {
+        ctx.drawImage(loadedAssets.images.yarn_blue, yarn.x * TILE_SIZE + 8, yarn.y * TILE_SIZE + 8, 16, 16);
+      });
+      specialYarns.forEach(specialYarn => {
+        ctx.drawImage(loadedAssets.images.yarn_gold, specialYarn.x * TILE_SIZE + 8, specialYarn.y * TILE_SIZE + 8, 16, 16);
+      });
+    }
+
+    function drawPlayer() {
+      if (player.invincible > 0) {
+        // Flashing effect for invincibility
+        if (Math.floor(player.invincible / 6) % 2 === 0) {
+          ctx.globalAlpha = 0.7;
+          ctx.fillStyle = "rgba(255, 255, 0, 0.5)"; // Yellow aura
+          ctx.beginPath();
+          ctx.arc(player.x + TILE_SIZE / 2, player.y + TILE_SIZE / 2, TILE_SIZE * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1.0;
+        }
+      }
+      const nuggetSprite = loadedAssets.images['nugget_' + player.direction];
+      if (nuggetSprite && nuggetSprite.complete) {
+        ctx.drawImage(nuggetSprite, player.x, player.y, TILE_SIZE, TILE_SIZE);
+      }
+    }
+
+    function drawEnemies() {
+      enemies.forEach(enemy => {
+        if (loadedAssets.images.cat_enemy && loadedAssets.images.cat_enemy.complete) {
+          if (!enemy.alive) {
+            ctx.globalAlpha = 0.4; // Make them appear "ghostly" when respawning
+            // Could also draw simple "eyes" or something to indicate respawn state
+          }
+          ctx.drawImage(loadedAssets.images.cat_enemy, enemy.x, enemy.y, TILE_SIZE, TILE_SIZE);
+          ctx.globalAlpha = 1.0; // Reset alpha
+        }
+      });
+    }
+
+    function drawScore() {
+      ctx.fillStyle = "#333";
+      ctx.font = "20px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText("Score: " + score, 10, 25);
+    }
+
+    function drawGame() {
+      drawMap();
       drawYarns();
       drawPlayer();
       drawEnemies();
-      timer++;
+      drawScore();
+    }
+
+    function drawLoadingScreen() {
+      ctx.fillStyle = "#fef6e4";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#333";
+      ctx.font = "24px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Loading Assets... (" + assetsLoadedCount + "/" + assetsToLoadCount + ")", canvas.width / 2, canvas.height / 2);
+    }
+
+    function drawMenuScreen() {
+      ctx.fillStyle = "#fef6e4"; // Similar to body background
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#333";
+      ctx.font = "bold 36px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Nugget's Yarn Maze", canvas.width / 2, canvas.height / 2 - 60);
+      // The HTML start button is visible during this state
+    }
+    
+    function drawTextButton(text, rect) {
+        ctx.fillStyle = "#f9c5d1";
+        ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        ctx.fillStyle = "#333";
+        ctx.font = "20px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, rect.x + rect.width / 2, rect.y + rect.height / 2);
+    }
+
+    function drawWinScreen() {
+      if (loadedAssets.images.win_background && loadedAssets.images.win_background.complete) {
+        ctx.drawImage(loadedAssets.images.win_background, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.fillStyle = "#aaffaa"; // Fallback green
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; // Semi-transparent overlay for text readability
+      ctx.fillRect(50, canvas.height / 2 - 100, canvas.width - 100, 200);
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 48px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("You Won!", canvas.width / 2, canvas.height / 2 - 50);
+      ctx.font = "24px Arial";
+      ctx.fillText("Final Score: " + score, canvas.width / 2, canvas.height / 2);
+
+      // Nugget cheering animation
+      player.cheerFrameTimer++;
+      if (player.cheerFrameTimer > 10) { // Change cheer frame every 10 game frames
+        player.currentCheerFrame = (player.currentCheerFrame + 1) % 3; // Cycle 0, 1, 2
+        player.cheerFrameTimer = 0;
+      }
+      const cheerFrames = [loadedAssets.images.nugget_cheer1, loadedAssets.images.nugget_cheer2, loadedAssets.images.nugget_cheer3];
+      const cheerSprite = cheerFrames[player.currentCheerFrame];
+      if (cheerSprite && cheerSprite.complete) {
+        ctx.drawImage(cheerSprite, canvas.width / 2 - TILE_SIZE, canvas.height / 2 + 30, TILE_SIZE * 2, TILE_SIZE * 2);
+      }
+      
+      drawTextButton("Play Again?", playAgainButtonRect);
+    }
+
+    function drawGameOverScreen() {
+      ctx.fillStyle = "#f8d7da"; // Light red background
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; // Semi-transparent overlay for text readability
+      ctx.fillRect(50, canvas.height / 2 - 75, canvas.width - 100, 150);
+
+      ctx.fillStyle = "#721c24"; // Dark red text
+      ctx.font = "bold 48px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Game Over!", canvas.width / 2, canvas.height / 2 - 20);
+      ctx.font = "24px Arial";
+      ctx.fillText("Final Score: " + score, canvas.width / 2, canvas.height / 2 + 20);
+      
+      drawTextButton("Try Again?", playAgainButtonRect);
+    }
+
+
+    // --- INPUT HANDLING ---
+    document.addEventListener("keydown", e => {
+      if (gameState !== 'PLAYING') return;
+
+      // Buffer next direction
+      if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") { player.nextDirX = 0; player.nextDirY = -1; }
+      else if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") { player.nextDirX = 0; player.nextDirY = 1; }
+      else if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") { player.nextDirX = -1; player.nextDirY = 0; }
+      else if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") { player.nextDirX = 1; player.nextDirY = 0; }
+      
+      // Prevent page scrolling with arrow keys
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    canvas.addEventListener('click', (event) => {
+        if (gameState === 'WIN' || gameState === 'GAME_OVER') {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
+
+            if (clickX >= playAgainButtonRect.x && clickX <= playAgainButtonRect.x + playAgainButtonRect.width &&
+                clickY >= playAgainButtonRect.y && clickY <= playAgainButtonRect.y + playAgainButtonRect.height) {
+                
+                resetGame();
+                gameState = 'PLAYING';
+                // Ensure startButtonContainer is hidden if it was an HTML button previously
+                startButtonContainer.style.display = "none";
+            }
+        }
+    });
+
+    // --- GAME LOOP ---
+    function gameLoop(timestamp) {
+      const deltaTime = timestamp - lastFrameTime;
+
+      // Cap frame rate
+      if (deltaTime >= FRAME_DELAY) {
+        lastFrameTime = timestamp - (deltaTime % FRAME_DELAY); // Adjust for smoother timing
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        switch (gameState) {
+          case 'LOADING':
+            drawLoadingScreen();
+            break;
+          case 'MENU':
+            drawMenuScreen();
+            // HTML Start button is active here
+            break;
+          case 'PLAYING':
+            updateGame();
+            drawGame();
+            break;
+          case 'GAME_OVER':
+            drawGameOverScreen();
+            break;
+          case 'WIN':
+            drawWinScreen();
+            break;
+        }
+      }
       requestAnimationFrame(gameLoop);
     }
 
+    // --- START GAME ---
     startButton.onclick = () => {
-      startButton.style.display = "none";
-      initYarns();
-      spawnEnemies(level);
-      bgMusic.play();
-      sfxStart.play();
-      gameStarted = true;
-      requestAnimationFrame(gameLoop);
+      if (gameState === 'MENU') { // Only start if assets are loaded and we are in menu
+        startButtonContainer.style.display = "none"; // Hide HTML start button
+        resetGame();
+        gameState = 'PLAYING';
+        if (loadedAssets.audio.sfxStart) loadedAssets.audio.sfxStart.play().catch(e => console.error("Error playing sfxStart:", e));
+      }
     };
+
+    // --- SCRIPT EXECUTION START ---
+    loadAssets(); // Start loading assets immediately
+    requestAnimationFrame(gameLoop); // Start the game loop (will initially show loading)
+
   </script>
 </body>
 </html>
-
