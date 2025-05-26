@@ -49,13 +49,68 @@
       "####.#.##.#.####",
       "####.#.##.#.####",
       "####.#.##.#.####",
-      "#............#.#",
+      "#..............#",
       "#.####.##.####.#",
       "#......##......#",
       "#.####.##.####.#",
       "#o............o#",
       "################"
     ];
+
+    let confetti = [];
+    let totalScore = 0;
+
+    function spawnConfetti() {
+      confetti = [];
+      for (let i = 0; i < 100; i++) {
+        confetti.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          speedY: 1 + Math.random() * 3,
+          color: `hsl(${Math.random() * 360}, 100%, 70%)`,
+          size: Math.random() * 4 + 2
+        });
+      }
+    }
+
+    function drawConfetti() {
+      confetti.forEach(c => {
+        ctx.fillStyle = c.color;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
+        ctx.fill();
+        c.y += c.speedY;
+        if (c.y > canvas.height) c.y = -10;
+      });
+    }
+
+    function drawWinAnimation() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bgWin, 0, 0, canvas.width, canvas.height);
+      drawConfetti();
+      ctx.fillStyle = "#000";
+      ctx.font = "36px Arial";
+      ctx.fillText("🎉 You Win! 🎉", 140, 100);
+      ctx.font = "20px Arial";
+      ctx.fillText("Total Score: " + totalScore, 180, 140);
+
+      let frame = winAnimationCounter % 60 < 15 ? nuggetImgs.cheer1 : winAnimationCounter % 60 < 30 ? nuggetImgs.cheer2 : nuggetImgs.cheer3;
+      ctx.drawImage(frame, canvas.width / 2 - 40, canvas.height / 2 - 40, 80, 80);
+
+      if (winAnimationCounter === 0) {
+        sfxGameWon.play();
+        spawnConfetti();
+      }
+      winAnimationCounter++;
+      if (winAnimationCounter >= 360) {
+        gameStarted = false;
+        level++;
+        startButton.style.display = "block";
+        startButton.innerText = "Next Level";
+      } else {
+        requestAnimationFrame(drawWinAnimation);
+      }
+    }
 
     const nuggetImgs = {
       up: new Image(),
