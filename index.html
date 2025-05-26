@@ -123,6 +123,19 @@
     let gameStarted = false;
     let winAnimationCounter = 0;
 
+        function spawnEnemies(count) {
+      enemies = [];
+      for (let i = 0; i < count; i++) {
+        enemies.push({
+          x: 7 + (i % 2),
+          y: 7,
+          moveCooldown: 0,
+          alive: true,
+          respawn: 0
+        });
+      }
+    }
+
     function spawnConfetti() {
       confetti = [];
       for (let i = 0; i < 100; i++) {
