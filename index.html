@@ -59,6 +59,7 @@
       "#o............o#",
       "################"
     ];
+
     const nuggetImgs = {
       up: new Image(),
       down: new Image(),
@@ -80,112 +81,40 @@
     yarnImg.src = "yarn_blue.png";
     const specialYarnImg = new Image();
     specialYarnImg.src = "yarn_gold.png";
-    const catImg = new Image();
-    catImg.src = "cat_enemy.png";
     const bgWin = new Image();
     bgWin.src = "win_background.png";
 
     const sfxYarn = new Audio("yarn_collect.mp3");
     const sfxSpecial = new Audio("powerup.mp3");
-    const sfxMeow = new Audio("meow.mp3");
     const sfxInvincible = new Audio("invincible_loop.mp3");
     const sfxStart = new Audio("start_game.mp3");
-    const sfxGameOver = new Audio("game_over.mp3");
     const sfxGameWon = new Audio("game_won.mp3");
-
     sfxInvincible.loop = true;
     const bgMusic = new Audio("bg_music.mp3");
     bgMusic.loop = true;
     bgMusic.volume = 0.3;
 
     let player = {
-      x: 1,
-      y: 3,
-      dirX: 0,
+      x: TILE_SIZE * 1,
+      y: TILE_SIZE * 3,
+      dirX: 1,
       dirY: 0,
       nextDirX: 0,
       nextDirY: 0,
-      direction: "down",
-      moveCooldown: 0,
+      direction: "right",
+      speed: 1.6,
       invincible: 0
     };
 
     let yarns = [];
     let specialYarns = [];
-    let enemies = [];
     let confetti = [];
-    let level = 1;
     let score = 0;
     let totalScore = 0;
     let timer = 0;
     let gameWon = false;
     let gameStarted = false;
     let winAnimationCounter = 0;
-
-        function spawnEnemies(count) {
-      enemies = [];
-      for (let i = 0; i < count; i++) {
-        enemies.push({
-          x: 7 + (i % 2),
-          y: 7,
-          moveCooldown: 0,
-          alive: true,
-          respawn: 0
-        });
-      }
-    }
-
-    function spawnConfetti() {
-      confetti = [];
-      for (let i = 0; i < 100; i++) {
-        confetti.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          speedY: 1 + Math.random() * 3,
-          color: `hsl(${Math.random() * 360}, 100%, 70%)`,
-          size: Math.random() * 4 + 2
-        });
-      }
-    }
-
-    function drawConfetti() {
-      confetti.forEach(c => {
-        ctx.fillStyle = c.color;
-        ctx.beginPath();
-        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
-        ctx.fill();
-        c.y += c.speedY;
-        if (c.y > canvas.height) c.y = -10;
-      });
-    }
-
-    function drawWinAnimation() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(bgWin, 0, 0, canvas.width, canvas.height);
-      drawConfetti();
-      ctx.fillStyle = "#000";
-      ctx.font = "36px Arial";
-      ctx.fillText("🎉 You Win! 🎉", 140, 100);
-      ctx.font = "20px Arial";
-      ctx.fillText("Total Score: " + totalScore, 180, 140);
-
-      let frame = winAnimationCounter % 60 < 15 ? nuggetImgs.cheer1 : winAnimationCounter % 60 < 30 ? nuggetImgs.cheer2 : nuggetImgs.cheer3;
-      ctx.drawImage(frame, canvas.width / 2 - 40, canvas.height / 2 - 40, 80, 80);
-
-      if (winAnimationCounter === 0) {
-        sfxGameWon.play();
-        spawnConfetti();
-      }
-      winAnimationCounter++;
-      if (winAnimationCounter >= 360) {
-        gameStarted = false;
-        level++;
-        startButton.style.display = "block";
-        startButton.innerText = "Next Level";
-      } else {
-        requestAnimationFrame(drawWinAnimation);
-      }
-    }
 
     function initYarns() {
       yarns = [];
@@ -195,6 +124,69 @@
           if (map[y][x] === '.') yarns.push({ x, y });
           if (map[y][x] === 'o') specialYarns.push({ x, y });
         }
+      }
+    }
+
+    function canMove(x, y) {
+      const col = Math.floor(x / TILE_SIZE);
+      const row = Math.floor(y / TILE_SIZE);
+      return map[row] && map[row][col] !== '#';
+    }
+
+    function updateSmoothPlayer() {
+      const centerX = player.x + TILE_SIZE / 2;
+      const centerY = player.y + TILE_SIZE / 2;
+      const cx = Math.floor(centerX / TILE_SIZE);
+      const cy = Math.floor(centerY / TILE_SIZE);
+
+      const aligned = Math.abs(centerX % TILE_SIZE - TILE_SIZE / 2) < 2 && Math.abs(centerY % TILE_SIZE - TILE_SIZE / 2) < 2;
+
+      if (aligned && canMove((cx + player.nextDirX) * TILE_SIZE, (cy + player.nextDirY) * TILE_SIZE)) {
+        player.dirX = player.nextDirX;
+        player.dirY = player.nextDirY;
+      }
+
+      const nextX = player.x + player.dirX * player.speed;
+      const nextY = player.y + player.dirY * player.speed;
+      const tileCol = Math.floor((nextX + TILE_SIZE / 2) / TILE_SIZE);
+      const tileRow = Math.floor((nextY + TILE_SIZE / 2) / TILE_SIZE);
+
+      if (canMove(tileCol * TILE_SIZE, tileRow * TILE_SIZE)) {
+        player.x = nextX;
+        player.y = nextY;
+      }
+
+      if (player.dirX === 1) player.direction = "right";
+      else if (player.dirX === -1) player.direction = "left";
+      else if (player.dirY === -1) player.direction = "up";
+      else if (player.dirY === 1) player.direction = "down";
+
+      let px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+      let py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
+
+      yarns = yarns.filter(dot => {
+        if (dot.x === px && dot.y === py) {
+          score++;
+          sfxYarn.play();
+          return false;
+        }
+        return true;
+      });
+
+      specialYarns = specialYarns.filter(dot => {
+        if (dot.x === px && dot.y === py) {
+          player.invincible = 600;
+          score += 5;
+          sfxSpecial.play();
+          sfxInvincible.play();
+          return false;
+        }
+        return true;
+      });
+
+      if (player.invincible > 0) {
+        player.invincible--;
+        if (player.invincible === 0) sfxInvincible.pause();
       }
     }
 
@@ -218,16 +210,10 @@
 
     function drawPlayer() {
       if (player.invincible > 0) {
-        ctx.fillStyle = "rgba(255, 255, 0, 0.4)";
-        ctx.fillRect(player.x * TILE_SIZE, player.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        ctx.fillStyle = "rgba(255, 255, 0, 0.3)";
+        ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
       }
-      ctx.drawImage(nuggetImgs[player.direction], player.x * TILE_SIZE, player.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-    }
-
-    function drawEnemies() {
-      enemies.forEach(e => {
-        if (e.alive) ctx.drawImage(catImg, e.x * TILE_SIZE, e.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-      });
+      ctx.drawImage(nuggetImgs[player.direction], player.x, player.y, TILE_SIZE, TILE_SIZE);
     }
 
     function drawHUD() {
@@ -235,98 +221,57 @@
       ctx.font = "18px Arial";
       ctx.fillText("Score: " + score, 10, 20);
       ctx.fillText("Time: " + Math.floor(timer / 60), 400, 20);
-      ctx.fillText("Level: " + level, 220, 20);
     }
 
-    function updatePlayer() {
-      if (player.moveCooldown > 0) {
-        player.moveCooldown--;
-        return;
-      }
-      const canMoveTo = (x, y) => map[y][x] !== '#';
-      if (canMoveTo(player.x + player.nextDirX, player.y + player.nextDirY)) {
-        player.dirX = player.nextDirX;
-        player.dirY = player.nextDirY;
-      }
-      let targetX = player.x + player.dirX;
-      let targetY = player.y + player.dirY;
-      if (canMoveTo(targetX, targetY)) {
-        player.x = targetX;
-        player.y = targetY;
-        player.moveCooldown = 24;
-        if (player.dirX === 1) player.direction = "right";
-        else if (player.dirX === -1) player.direction = "left";
-        else if (player.dirY === -1) player.direction = "up";
-        else if (player.dirY === 1) player.direction = "down";
-      }
-      if (player.invincible > 0) {
-        player.invincible--;
-        if (player.invincible === 0) sfxInvincible.pause();
-      }
-      yarns = yarns.filter(dot => {
-        if (dot.x === player.x && dot.y === player.y) {
-          score++;
-          sfxYarn.play();
-          return false;
-        }
-        return true;
-      });
-      specialYarns = specialYarns.filter(dot => {
-        if (dot.x === player.x && dot.y === player.y) {
-          player.invincible = 600;
-          score += 5;
-          sfxSpecial.play();
-          sfxInvincible.play();
-          return false;
-        }
-        return true;
+    function drawConfetti() {
+      confetti.forEach(c => {
+        ctx.fillStyle = c.color;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
+        ctx.fill();
+        c.y += c.speedY;
+        if (c.y > canvas.height) c.y = -10;
       });
     }
 
-    function updateEnemies() {
-      enemies.forEach(e => {
-        if (e.respawn > 0) {
-          e.respawn--;
-          if (e.respawn === 0) {
-            e.x = 7 + Math.floor(Math.random() * 2);
-            e.y = 7;
-            e.alive = true;
-          }
-          return;
-        }
-        if (!e.alive) return;
-        if (e.moveCooldown > 0) {
-          e.moveCooldown--;
-          return;
-        }
-        e.moveCooldown = 24;
-        let dx = player.x - e.x;
-        let dy = player.y - e.y;
-        let options = [];
-        if (Math.abs(dx) > Math.abs(dy)) {
-          options = dx > 0 ? [{ x: e.x + 1, y: e.y }, { x: e.x, y: e.y + Math.sign(dy) }] : [{ x: e.x - 1, y: e.y }, { x: e.x, y: e.y + Math.sign(dy) }];
-        } else {
-          options = dy > 0 ? [{ x: e.x, y: e.y + 1 }, { x: e.x + Math.sign(dx), y: e.y }] : [{ x: e.x, y: e.y - 1 }, { x: e.x + Math.sign(dx), y: e.y }];
-        }
-        for (let p of options) {
-          if (map[p.y] && map[p.y][p.x] !== '#') {
-            e.x = p.x;
-            e.y = p.y;
-            break;
-          }
-        }
-        if (e.x === player.x && e.y === player.y) {
-          if (player.invincible > 0) {
-            e.alive = false;
-            e.respawn = 600;
-            sfxMeow.play();
-          } else {
-            sfxGameOver.play();
-            alert("Game Over! Nugget got caught!");
-            window.location.reload();
-          }
-        }
-      });
+    function spawnConfetti() {
+      confetti = [];
+      for (let i = 0; i < 100; i++) {
+        confetti.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          speedY: 1 + Math.random() * 3,
+          color: `hsl(${Math.random() * 360}, 100%, 70%)`,
+          size: Math.random() * 4 + 2
+        });
+      }
+    }
+
+    function drawWinAnimation() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bgWin, 0, 0, canvas.width, canvas.height);
+      drawConfetti();
+      ctx.fillStyle = "#000";
+      ctx.font = "36px Arial";
+      ctx.fillText("🎉 You Win! 🎉", 140, 100);
+      ctx.font = "20px Arial";
+      ctx.fillText("Total Score: " + score, 180, 140);
+
+      let frame = winAnimationCounter % 60 < 15 ? nuggetImgs.cheer1 : winAnimationCounter % 60 < 30 ? nuggetImgs.cheer2 : nuggetImgs.cheer3;
+      ctx.drawImage(frame, canvas.width / 2 - 40, canvas.height / 2 - 40, 80, 80);
+
+      if (winAnimationCounter === 0) {
+        sfxGameWon.play();
+        spawnConfetti();
+      }
+      winAnimationCounter++;
+      if (winAnimationCounter >= 360) {
+        gameStarted = false;
+        startButton.style.display = "block";
+        startButton.innerText = "Play Again";
+      } else {
+        requestAnimationFrame(drawWinAnimation);
+      }
     }
 
     document.addEventListener("keydown", e => {
@@ -337,7 +282,6 @@
     });
 
     function gameLoop(timestamp) {
-      if (!gameStarted) return;
       const delta = timestamp - lastFrameTime;
       if (delta < FRAME_DELAY) {
         requestAnimationFrame(gameLoop);
@@ -354,11 +298,9 @@
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawMap();
-      updatePlayer();
-      updateEnemies();
+      updateSmoothPlayer();
       drawYarns();
       drawPlayer();
-      drawEnemies();
       drawHUD();
       timer++;
       requestAnimationFrame(gameLoop);
@@ -367,12 +309,10 @@
     startButton.onclick = () => {
       startButton.style.display = "none";
       initYarns();
-      spawnEnemies(level);
       bgMusic.play();
       sfxStart.play();
       gameStarted = true;
       gameWon = false;
-      window.focus();
       requestAnimationFrame(gameLoop);
     };
   </script>
