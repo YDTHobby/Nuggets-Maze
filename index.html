@@ -39,6 +39,9 @@
     const startButton = document.getElementById("startButton");
 
     const TILE_SIZE = 32;
+    const FRAME_DELAY = 1000 / 60;
+    let lastFrameTime = 0;
+
     const map = [
       "################",
       "#......##......#",
@@ -56,61 +59,6 @@
       "#o............o#",
       "################"
     ];
-
-    let confetti = [];
-    let totalScore = 0;
-
-    function spawnConfetti() {
-      confetti = [];
-      for (let i = 0; i < 100; i++) {
-        confetti.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          speedY: 1 + Math.random() * 3,
-          color: `hsl(${Math.random() * 360}, 100%, 70%)`,
-          size: Math.random() * 4 + 2
-        });
-      }
-    }
-
-    function drawConfetti() {
-      confetti.forEach(c => {
-        ctx.fillStyle = c.color;
-        ctx.beginPath();
-        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
-        ctx.fill();
-        c.y += c.speedY;
-        if (c.y > canvas.height) c.y = -10;
-      });
-    }
-
-    function drawWinAnimation() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(bgWin, 0, 0, canvas.width, canvas.height);
-      drawConfetti();
-      ctx.fillStyle = "#000";
-      ctx.font = "36px Arial";
-      ctx.fillText("🎉 You Win! 🎉", 140, 100);
-      ctx.font = "20px Arial";
-      ctx.fillText("Total Score: " + totalScore, 180, 140);
-
-      let frame = winAnimationCounter % 60 < 15 ? nuggetImgs.cheer1 : winAnimationCounter % 60 < 30 ? nuggetImgs.cheer2 : nuggetImgs.cheer3;
-      ctx.drawImage(frame, canvas.width / 2 - 40, canvas.height / 2 - 40, 80, 80);
-
-      if (winAnimationCounter === 0) {
-        sfxGameWon.play();
-        spawnConfetti();
-      }
-      winAnimationCounter++;
-      if (winAnimationCounter >= 360) {
-        gameStarted = false;
-        level++;
-        startButton.style.display = "block";
-        startButton.innerText = "Next Level";
-      } else {
-        requestAnimationFrame(drawWinAnimation);
-      }
-    }
 
     const nuggetImgs = {
       up: new Image(),
@@ -166,18 +114,64 @@
     let yarns = [];
     let specialYarns = [];
     let enemies = [];
-
+    let confetti = [];
     let level = 1;
     let score = 0;
+    let totalScore = 0;
     let timer = 0;
     let gameWon = false;
     let gameStarted = false;
     let winAnimationCounter = 0;
 
-    function spawnEnemies(count) {
-      enemies = [];
-      for (let i = 0; i < count; i++) {
-        enemies.push({ x: 7 + (i % 2), y: 7, moveCooldown: 0, alive: true, respawn: 0 });
+    function spawnConfetti() {
+      confetti = [];
+      for (let i = 0; i < 100; i++) {
+        confetti.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          speedY: 1 + Math.random() * 3,
+          color: `hsl(${Math.random() * 360}, 100%, 70%)`,
+          size: Math.random() * 4 + 2
+        });
+      }
+    }
+
+    function drawConfetti() {
+      confetti.forEach(c => {
+        ctx.fillStyle = c.color;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
+        ctx.fill();
+        c.y += c.speedY;
+        if (c.y > canvas.height) c.y = -10;
+      });
+    }
+
+    function drawWinAnimation() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bgWin, 0, 0, canvas.width, canvas.height);
+      drawConfetti();
+      ctx.fillStyle = "#000";
+      ctx.font = "36px Arial";
+      ctx.fillText("🎉 You Win! 🎉", 140, 100);
+      ctx.font = "20px Arial";
+      ctx.fillText("Total Score: " + totalScore, 180, 140);
+
+      let frame = winAnimationCounter % 60 < 15 ? nuggetImgs.cheer1 : winAnimationCounter % 60 < 30 ? nuggetImgs.cheer2 : nuggetImgs.cheer3;
+      ctx.drawImage(frame, canvas.width / 2 - 40, canvas.height / 2 - 40, 80, 80);
+
+      if (winAnimationCounter === 0) {
+        sfxGameWon.play();
+        spawnConfetti();
+      }
+      winAnimationCounter++;
+      if (winAnimationCounter >= 360) {
+        gameStarted = false;
+        level++;
+        startButton.style.display = "block";
+        startButton.innerText = "Next Level";
+      } else {
+        requestAnimationFrame(drawWinAnimation);
       }
     }
 
@@ -195,36 +189,9 @@
     function drawMap() {
       for (let y = 0; y < map.length; y++) {
         for (let x = 0; x < map[y].length; x++) {
-          if (map[y][x] === '#') {
-            ctx.fillStyle = "#d9d4b0";
-            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-          } else {
-            ctx.fillStyle = "#fff8dc";
-            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-          }
+          ctx.fillStyle = map[y][x] === '#' ? "#d9d4b0" : "#fff8dc";
+          ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
         }
-      }
-    }
-
-    function drawWinAnimation() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(bgWin, 0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#000";
-      ctx.font = "36px Arial";
-      ctx.fillText("🎉 You Win! 🎉", 140, 100);
-
-      let frame = winAnimationCounter % 60 < 15 ? nuggetImgs.cheer1 : winAnimationCounter % 60 < 30 ? nuggetImgs.cheer2 : nuggetImgs.cheer3;
-      ctx.drawImage(frame, canvas.width / 2 - 40, canvas.height / 2 - 40, 80, 80);
-
-      if (winAnimationCounter === 0) sfxGameWon.play();
-      winAnimationCounter++;
-      if (winAnimationCounter >= 360) {
-        gameStarted = false;
-        level++;
-        startButton.style.display = "block";
-        startButton.innerText = "Next Level";
-      } else {
-        requestAnimationFrame(drawWinAnimation);
       }
     }
 
@@ -274,7 +241,7 @@
       if (canMoveTo(targetX, targetY)) {
         player.x = targetX;
         player.y = targetY;
-        player.moveCooldown = 20;
+        player.moveCooldown = 24;
         if (player.dirX === 1) player.direction = "right";
         else if (player.dirX === -1) player.direction = "left";
         else if (player.dirY === -1) player.direction = "up";
@@ -320,7 +287,7 @@
           e.moveCooldown--;
           return;
         }
-        e.moveCooldown = 20;
+        e.moveCooldown = 24;
         let dx = player.x - e.x;
         let dy = player.y - e.y;
         let options = [];
@@ -357,14 +324,22 @@
       if (e.key === "ArrowRight") { player.nextDirX = 1; player.nextDirY = 0; }
     });
 
-    function gameLoop() {
+    function gameLoop(timestamp) {
       if (!gameStarted) return;
+      const delta = timestamp - lastFrameTime;
+      if (delta < FRAME_DELAY) {
+        requestAnimationFrame(gameLoop);
+        return;
+      }
+      lastFrameTime = timestamp;
+
       if (yarns.length === 0 && specialYarns.length === 0 && !gameWon) {
         gameWon = true;
         winAnimationCounter = 0;
         drawWinAnimation();
         return;
       }
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawMap();
       updatePlayer();
@@ -386,7 +361,7 @@
       gameStarted = true;
       gameWon = false;
       window.focus();
-      gameLoop();
+      requestAnimationFrame(gameLoop);
     };
   </script>
 </body>
