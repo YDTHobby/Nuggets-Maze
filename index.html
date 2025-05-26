@@ -82,10 +82,10 @@
     </div>
     <canvas id="gameCanvas" width="512" height="512"></canvas>
   </div>
-  
+
   <div id="instructions">
     <h3>How to Play</h3>
-    <p>Help Nugget collect all the yarn while avoiding the cats!</p>
+    <p>Help Nugget collect all the yarn while avoiding the cat!</p>
     <div class="controls">
       <span class="control">Arrow Keys: Move</span>
       <span class="control">Space/ESC: Pause</span>
@@ -94,26 +94,23 @@
   </div>
 
   <script>
-    // Constants
+    // === Constants ===
     const TILE_SIZE = 32;
-    const PLAYER_SPEED = 2.4;
+    const PLAYER_SPEED = 1.92;           // 20% slower than 2.4
+    const ENEMY_SPEED_BASE = 2.4 * 0.8;   // enemy based on original 2.4 slowed 20%
     const INVINCIBLE_DURATION = 360;
-    const ENEMY_RESPAWN_TIME = 480; // 8 seconds at 60fps
-    const ENEMY_SPAWN_DELAY = 480; // 8 seconds before first spawn
+    const ENEMY_SPAWN_DELAY = 480;        // frames (8s at 60fps)
     const WIN_ANIMATION_DURATION = 240;
     const LEVEL_TRANSITION_DELAY = 3000;
-    const MAX_ENEMIES = 6;
-    
-    // Gate & spawn setup
-    const gatePositions = [];
-    // gates at row 6, cols 4–11
-    for (let c = 4; c <= 11; c++) gatePositions.push({ row: 6, col: c });
 
-    const spawnPoints = [ { row: 7, col: 7 } ]; // center closed room
+    // === Gate and Spawn Setup ===
+    const gatePositions = [];
+    for (let c = 4; c <= 11; c++) gatePositions.push({ row: 6, col: c });  // top of center room
+    const spawnPoint = { row: 7, col: 7 };  // single center tile
     let gatesOpen = false;
     let frameCounter = 0;
 
-    // Game States
+    // === Game States ===
     const GAME_STATE = {
       MENU: 0,
       PLAYING: 1,
@@ -122,206 +119,329 @@
       GAME_OVER: 4,
       LEVEL_TRANSITION: 5
     };
-    
-    // Game elements
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const startButton = document.getElementById("startButton");
-    const pauseOverlay = document.getElementById("pauseOverlay");
 
+    // === Canvas Elements ===
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startButton = document.getElementById('startButton');
+    const pauseOverlay = document.getElementById('pauseOverlay');
+
+    // === Map Layout ===
     const map = [
-      "################",
-      "#......##......#",
-      "#.####.##.####.#",
-      "#..............#",
-      "#.####.##.####.#",
-      "#..............#",
-      "###.########.###",
-      "###.#......#.###",
-      "###.########.###",
-      "#..............#",
-      "#.####.##.####.#",
-      "#......##......#",
-      "#.####.##.####.#",
-      "#o............o#",
-      "################"
+      '################',
+      '#......##......#',
+      '#.####.##.####.#',
+      '#..............#',
+      '#.####.##.####.#',
+      '#..............#',
+      '###.########.###',
+      '###.#......#.###',
+      '###.########.###',
+      '#..............#',
+      '#.####.##.####.#',
+      '#......##......#',
+      '#.####.##.####.#',
+      '#o............o#',
+      '################'
     ];
 
-    // Asset loading with fallbacks
-    const nuggetImgs = { up: new Image(), down: new Image(), left: new Image(), right: new Image(), cheer1: new Image(), cheer2: new Image(), cheer3: new Image() };
-    const loadImage = (img, src, fallbackColor = '#ff69b4') => {
-      img.src = src;
-      img.onerror = () => img.fallbackColor = fallbackColor;
+    // === Asset Loading ===
+    const nuggetImgs = {
+      up: new Image(), down: new Image(), left: new Image(), right: new Image(),
+      cheer1: new Image(), cheer2: new Image(), cheer3: new Image()
     };
-    loadImage(nuggetImgs.up, "nugget_up.png");
-    loadImage(nuggetImgs.down, "nugget_down.png");
-    loadImage(nuggetImgs.left, "nugget_left.png");
-    loadImage(nuggetImgs.right, "nugget_right.png");
-    loadImage(nuggetImgs.cheer1, "nugget_cheer1.png");
-    loadImage(nuggetImgs.cheer2, "nugget_cheer2.png");
-    loadImage(nuggetImgs.cheer3, "nugget_cheer3.png");
+    function loadImage(img, src, fallback) {
+      img.src = src;
+      img.onerror = () => img.fallbackColor = fallback;
+    }
+    loadImage(nuggetImgs.up, 'nugget_up.png', '#ff69b4');
+    loadImage(nuggetImgs.down, 'nugget_down.png', '#ff69b4');
+    loadImage(nuggetImgs.left, 'nugget_left.png', '#ff69b4');
+    loadImage(nuggetImgs.right, 'nugget_right.png', '#ff69b4');
+    loadImage(nuggetImgs.cheer1, 'nugget_cheer1.png', '#ff69b4');
+    loadImage(nuggetImgs.cheer2, 'nugget_cheer2.png', '#ff69b4');
+    loadImage(nuggetImgs.cheer3, 'nugget_cheer3.png', '#ff69b4');
 
-    const yarnImg = new Image();
-    const specialYarnImg = new Image();
-    const catImg = new Image();
-    const bgWin = new Image();
-    loadImage(yarnImg, "yarn_blue.png", '#4169e1');
-    loadImage(specialYarnImg, "yarn_gold.png", '#ffd700');
-    loadImage(catImg, "cat_enemy.png", '#8b4513');
-    loadImage(bgWin, "win_background.png", '#90ee90');
+    const yarnImg = new Image(), specialYarnImg = new Image(), catImg = new Image(), bgWin = new Image();
+    loadImage(yarnImg, 'yarn_blue.png', '#4169e1');
+    loadImage(specialYarnImg, 'yarn_gold.png', '#ffd700');
+    loadImage(catImg, 'cat_enemy.png', '#8b4513');
+    loadImage(bgWin, 'win_background.png', '#90ee90');
 
-    // Audio
-    const createAudio = src => { const a=new Audio(); a.src=src; a.addEventListener('error',()=>{}); return a; };
-    const sfxYarn = createAudio("yarn_collect.mp3");
-    const sfxSpecial = createAudio("powerup.mp3");
-    const sfxMeow = createAudio("meow.mp3");
-    const sfxInvincible = createAudio("invincible_loop.mp3"); sfxInvincible.loop=true;
-    const sfxStart = createAudio("start_game.mp3");
-    const sfxGameOver = createAudio("game_over.mp3");
-    const sfxGameWon = createAudio("game_won.mp3");
-    const bgMusic = createAudio("bg_music.mp3"); bgMusic.loop=true;
+    // === Audio ===
+    function createAudio(src) {
+      const a = new Audio();
+      a.src = src;
+      a.addEventListener('error', () => {});
+      return a;
+    }
+    const sfxYarn = createAudio('yarn_collect.mp3');
+    const sfxSpecial = createAudio('powerup.mp3');
+    const sfxMeow = createAudio('meow.mp3');
+    const sfxInvincible = createAudio('invincible_loop.mp3'); sfxInvincible.loop = true;
+    const sfxStart = createAudio('start_game.mp3');
+    const sfxGameOver = createAudio('game_over.mp3');
+    const sfxGameWon = createAudio('game_won.mp3');
+    const bgMusic = createAudio('bg_music.mp3'); bgMusic.loop = true;
 
-    // State
+    // === Game State ===
     let currentState = GAME_STATE.MENU;
-    let player = { x: TILE_SIZE, y: TILE_SIZE*3, dirX:1, dirY:0, direction:"right", speed:PLAYER_SPEED, invincible:0 };
-    let enemies=[], yarns=[], specialYarns=[];
-    let score=0, level=1, winAnimationCounter=0, inputBuffer=null, levelTransitionTimer=0;
+    let player = { x: TILE_SIZE, y: TILE_SIZE*3, dirX: 1, dirY: 0, direction: 'right', speed: PLAYER_SPEED, invincible: 0 };
+    let enemies = [], yarns = [], specialYarns = [];
+    let score = 0, level = 1, winAnim = 0, inputBuf = null, transTimer = 0;
 
-    function initYarns(){ yarns=[]; specialYarns=[];
-      map.forEach((row,y)=> row.split('').forEach((c,x)=>{ if(c==='.') yarns.push({x,y}); if(c==='o') specialYarns.push({x,y}); }));
-    }
-
-    function spawnEnemies(count){ enemies=[]; const spd=PLAYER_SPEED+(level*0.15);
-      const num=Math.min(count,MAX_ENEMIES);
-      for(let i=0;i<num;i++){
-        enemies.push({ speed:spd, alive:false, respawn:ENEMY_SPAWN_DELAY+(i*60), moveX:0, moveY:0, targetSet:false, intelligence:Math.min(0.3+(level*0.1),0.9), lastDirectionChange:0 });
+    // === Initialize Yarns ===
+    function initYarns() {
+      yarns = [];
+      specialYarns = [];
+      for (let r=0; r<map.length; r++) {
+        for (let c=0; c<map[r].length; c++) {
+          const ch = map[r][c];
+          if (ch === '.') yarns.push({ x: c, y: r });
+          if (ch === 'o') specialYarns.push({ x: c, y: r });
+        }
       }
+      // remove any dots in center spawn room
+      yarns = yarns.filter(dot => !(dot.y === spawnPoint.row && dot.x >= spawnPoint.col-2 && dot.x <= spawnPoint.col+3));
     }
 
-    function resetGame(){
-      player={ x:TILE_SIZE, y:TILE_SIZE*3, dirX:1, dirY:0, direction:"right", speed:PLAYER_SPEED, invincible:0 };
-      score=0; level=1; inputBuffer=null;
-      initYarns(); spawnEnemies(level+1);
-      gatesOpen=false; frameCounter=0;
-      currentState=GAME_STATE.PLAYING;
+    // === Spawn Single Enemy ===
+    function spawnEnemies() {
+      enemies = [];
+      const e = { ...spawnPoint };
+      e.x = spawnPoint.col * TILE_SIZE;
+      e.y = spawnPoint.row * TILE_SIZE;
+      e.speed = ENEMY_SPEED_BASE + (level * 0.15 * 0.8);
+      e.alive = false;
+      e.respawn = 0;     // already in place
+      e.moveX = 0; e.moveY = 0;
+      e.targetSet = false;
+      e.intelligence = Math.min(0.3 + level*0.1, 0.9);
+      e.lastDir = 0;
+      enemies.push(e);
     }
 
-    function nextLevel(){ level++; score+=100*level; initYarns(); spawnEnemies(level+1);
-      player.x=TILE_SIZE; player.y=TILE_SIZE*3; player.dirX=1; player.dirY=0; player.direction="right"; player.invincible=0;
-      currentState=GAME_STATE.LEVEL_TRANSITION; levelTransitionTimer=LEVEL_TRANSITION_DELAY;
+    // === Reset & Next Level ===
+    function resetGame() {
+      player.x = TILE_SIZE; player.y = TILE_SIZE*3;
+      player.dirX = 1; player.dirY = 0; player.direction = 'right'; player.speed = PLAYER_SPEED; player.invincible = 0;
+      score = 0; level = 1; inputBuf = null;
+      initYarns(); spawnEnemies(); gatesOpen=false; frameCounter=0;
+      currentState = GAME_STATE.PLAYING;
+    }
+    function nextLevel() {
+      level++;
+      score += 100*level;
+      initYarns(); spawnEnemies(); gatesOpen=false; frameCounter=0;
+      currentState = GAME_STATE.LEVEL_TRANSITION;
+      transTimer = LEVEL_TRANSITION_DELAY;
     }
 
-    function canMove(x,y,forEnemy=false){
-      const col=Math.floor((x+TILE_SIZE/2)/TILE_SIZE), row=Math.floor((y+TILE_SIZE/2)/TILE_SIZE);
-      const tile = map[row] && map[row][col]; if(tile!=="#") return true;
-      if(forEnemy && gatesOpen) for(const g of gatePositions) if(g.row===row&&g.col===col) return true;
+    // === Movement Check ===
+    function canMove(x,y,forEnemy=false) {
+      const col = Math.floor((x + TILE_SIZE/2)/TILE_SIZE);
+      const row = Math.floor((y + TILE_SIZE/2)/TILE_SIZE);
+      const ch = map[row] && map[row][col];
+      if (ch !== '#') return true;
+      if (forEnemy && gatesOpen) {
+        for (let g of gatePositions) if (g.row===row && g.col===col) return true;
+      }
       return false;
     }
 
-    function playAudio(a){ try{ a.currentTime=0; a.play(); }catch{} }
+    // === Audio Play Helper ===
+    function playAudio(a) {
+      try { a.currentTime=0; a.play(); } catch{};
+    }
 
-    function updatePlayer(){ if(currentState!==GAME_STATE.PLAYING) return;
-      const cx=Math.floor((player.x+TILE_SIZE/2)/TILE_SIZE), cy=Math.floor((player.y+TILE_SIZE/2)/TILE_SIZE);
-      const aligned=Math.abs(player.x-(cx*TILE_SIZE))<4 && Math.abs(player.y-(cy*TILE_SIZE))<4;
-      if(aligned && inputBuffer){ const tx=(cx+inputBuffer.x)*TILE_SIZE, ty=(cy+inputBuffer.y)*TILE_SIZE;
-        if(canMove(tx,ty)){ player.dirX=inputBuffer.x; player.dirY=inputBuffer.y; inputBuffer=null; }
+    // === Update Player ===
+    function updatePlayer() {
+      if (currentState!==GAME_STATE.PLAYING) return;
+      const px = Math.floor((player.x+TILE_SIZE/2)/TILE_SIZE);
+      const py = Math.floor((player.y+TILE_SIZE/2)/TILE_SIZE);
+      const aligned = Math.abs(player.x - px*TILE_SIZE)<4 && Math.abs(player.y - py*TILE_SIZE)<4;
+      if (aligned && inputBuf) {
+        const tx=(px+inputBuf.x)*TILE_SIZE;
+        const ty=(py+inputBuf.y)*TILE_SIZE;
+        if (canMove(tx,ty)) { player.dirX=inputBuf.x; player.dirY=inputBuf.y; inputBuf=null; }
       }
-      const nx=player.x+player.dirX*player.speed, ny=player.y+player.dirY*player.speed;
+      const nx = player.x + player.dirX*player.speed;
+      const ny = player.y + player.dirY*player.speed;
       if(canMove(nx,ny)) { player.x=nx; player.y=ny; }
-      else{ const gcx=Math.floor((player.x+TILE_SIZE/2)/TILE_SIZE), gcy=Math.floor((player.y+TILE_SIZE/2)/TILE_SIZE);
-        player.x=gcx*TILE_SIZE; player.y=gcy*TILE_SIZE; player.dirX=0; player.dirY=0; inputBuffer=null; }
-      if(player.dirX>0) player.direction="right"; else if(player.dirX<0) player.direction="left";
-      else if(player.dirY<0) player.direction="up"; else if(player.dirY>0) player.direction="down";
-      // collect yarns
-      yarns=yarns.filter(dot=>{ if(dot.x===cx && dot.y===cy){ score++; playAudio(sfxYarn); return false;} return true; });
-      specialYarns=specialYarns.filter(dot=>{ if(dot.x===cx && dot.y===cy){ player.invincible=INVINCIBLE_DURATION; score+=5; playAudio(sfxSpecial); playAudio(sfxInvincible); return false;} return true; });
-      if(player.invincible>0){ player.invincible--; if(player.invincible===0) sfxInvincible.pause(); }
+      else {
+        player.x = px*TILE_SIZE; player.y = py*TILE_SIZE;
+        player.dirX=0; player.dirY=0; inputBuf=null;
+      }
+      if (player.dirX>0) player.direction='right';
+      else if (player.dirX<0) player.direction='left';
+      else if (player.dirY<0) player.direction='up';
+      else if (player.dirY>0) player.direction='down';
+      // collect
+      yarns=yarns.filter(d=>{ if(d.x===px&&d.y===py){ score++; playAudio(sfxYarn); return false;} return true; });
+      specialYarns=specialYarns.filter(d=>{ if(d.x===px&&d.y===py){ player.invincible=INVINCIBLE_DURATION; score+=5; playAudio(sfxSpecial); playAudio(sfxInvincible); return false;} return true; });
+      if(player.invincible>0){ player.invincible--; if(player.invincible===0) sfxInvincible.pause();}
     }
 
-    function updateEnemies(){ if(currentState!==GAME_STATE.PLAYING) return;
-      const px=Math.floor((player.x+TILE_SIZE/2)/TILE_SIZE), py=Math.floor((player.y+TILE_SIZE/2)/TILE_SIZE);
-      enemies.forEach((e,i)=>{
-        if(!e.alive){ e.respawn--; if(e.respawn<=0){ const sp=spawnPoints[i%spawnPoints.length]; e.x=sp.col*TILE_SIZE; e.y=sp.row*TILE_SIZE; e.alive=true; e.targetSet=false; e.lastDirectionChange=0;} return;}        
-        // decide move
-        const centered=Math.abs(e.x - Math.round(e.x/TILE_SIZE)*TILE_SIZE)<4 && Math.abs(e.y - Math.round(e.y/TILE_SIZE)*TILE_SIZE)<4;
-        if(centered || !e.targetSet || e.lastDirectionChange++>30){
-          if(Math.random()<e.intelligence){ const dx=player.x-e.x, dy=player.y-e.y; e.moveX=Math.abs(dx)>Math.abs(dy)?Math.sign(dx):0; e.moveY=Math.abs(dx)<=Math.abs(dy)?Math.sign(dy):0;} 
-          else{ const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}]; const rd=dirs[Math.floor(Math.random()*dirs.length)]; e.moveX=rd.x; e.moveY=rd.y; }
-          e.targetSet=true; e.lastDirectionChange=0;
-        }
-        const ex=e.x+e.moveX*e.speed, ey=e.y+e.moveY*e.speed;
-        if(canMove(ex,ey,true)){ e.x=ex; e.y=ey;} else e.targetSet=false;
-        const ecx=Math.floor((e.x+TILE_SIZE/2)/TILE_SIZE), ecy=Math.floor((e.y+TILE_SIZE/2)/TILE_SIZE);
-        if(px===ecx && py===ecy){ if(player.invincible>0){ e.alive=false; e.respawn=ENEMY_RESPAWN_TIME; score+=10; playAudio(sfxMeow);} else{ currentState=GAME_STATE.GAME_OVER; playAudio(sfxGameOver); bgMusic.pause();
-            setTimeout(()=>{ alert("Game Over! Nugget got caught! Final Score: "+score); currentState=GAME_STATE.MENU; startButton.style.display="block"; startButton.innerText="Play Again"; }, 100);
-        }}
-      });
-    }
-
-    function updateGame(){
+    // === Update Enemy ===
+    function updateEnemies() {
+      if(currentState!==GAME_STATE.PLAYING) return;
+      // open gates after delay
       frameCounter++;
       if(!gatesOpen && frameCounter>=ENEMY_SPAWN_DELAY) gatesOpen=true;
-      switch(currentState){
-        case GAME_STATE.PLAYING: updatePlayer(); updateEnemies(); if(yarns.length===0 && specialYarns.length===0){ currentState=GAME_STATE.WON; playAudio(sfxGameWon); winAnimationCounter=0;} break;
-        case GAME_STATE.WON: winAnimationCounter++; if(winAnimationCounter>=WIN_ANIMATION_DURATION) nextLevel(); break;
-        case GAME_STATE.LEVEL_TRANSITION: levelTransitionTimer--; if(levelTransitionTimer<=0) currentState=GAME_STATE.PLAYING; break;
+      for(let e of enemies) {
+        if(!gatesOpen) continue; // wait
+        const centered = Math.abs(e.x - Math.round(e.x/TILE_SIZE)*TILE_SIZE)<4 && Math.abs(e.y - Math.round(e.y/TILE_SIZE)*TILE_SIZE)<4;
+        if(centered || !e.targetSet || e.lastDir++>30) {
+          if(Math.random()<e.intelligence) {
+            const dx=player.x-e.x, dy=player.y-e.y;
+            e.moveX = Math.abs(dx)>Math.abs(dy)?Math.sign(dx):0;
+            e.moveY = Math.abs(dx)<=Math.abs(dy)?Math.sign(dy):0;
+          } else {
+            const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+            const rd=dirs[Math.floor(Math.random()*dirs.length)];
+            e.moveX=rd.x; e.moveY=rd.y;
+          }
+          e.targetSet=true; e.lastDir=0;
+        }
+        const ex=e.x+e.moveX*e.speed;
+        const ey=e.y+e.moveY*e.speed;
+        if(canMove(ex,ey,true)) { e.x=ex; e.y=ey; } else e.targetSet=false;
+        const ecx=Math.floor((e.x+TILE_SIZE/2)/TILE_SIZE);
+        const ecy=Math.floor((e.y+TILE_SIZE/2)/TILE_SIZE);
+        if(ecx===Math.floor((player.x+TILE_SIZE/2)/TILE_SIZE) && ecy===Math.floor((player.y+TILE_SIZE/2)/TILE_SIZE)) {
+          if(player.invincible>0) {
+            e.x = spawnPoint.col*TILE_SIZE; e.y=spawnPoint.row*TILE_SIZE;
+            score+=10; playAudio(sfxMeow);
+          } else {
+            currentState=GAME_STATE.GAME_OVER; playAudio(sfxGameOver); bgMusic.pause();
+            setTimeout(()=>{ alert(`Game Over! Score: ${score}`); currentState=GAME_STATE.MENU; startButton.style.display='block'; startButton.innerText='Play Again'; },100);
+          }
+        }
       }
     }
 
-    function drawImage(img,x,y,w,h,fb){ if(img.complete&&img.naturalWidth>0) ctx.drawImage(img,x,y,w,h); else{ ctx.fillStyle=img.fallbackColor||fb; ctx.fillRect(x,y,w,h);} }
-
-    function drawMap(){ for(let r=0;r<map.length;r++){ for(let c=0;c<map[r].length;c++){ let color=map[r][c]==='#'?"#d9d4b0":"#fff8dc";
-            if(gatesOpen) for(const g of gatePositions) if(g.row===r&&g.col===c) color="#a0d8a0";
-            ctx.fillStyle=color; ctx.fillRect(c*TILE_SIZE,r*TILE_SIZE,TILE_SIZE,TILE_SIZE);
-    }} }
-
-    function drawYarns(){ yarns.forEach(dot=> drawImage(yarnImg,dot.x*TILE_SIZE+8,dot.y*TILE_SIZE+8,16,16,'#4169e1')); specialYarns.forEach(dot=> drawImage(specialYarnImg,dot.x*TILE_SIZE+8,dot.y*TILE_SIZE+8,16,16,'#ffd700')); }
-    function drawPlayer(){ if(player.invincible>0){ ctx.fillStyle="rgba(255,255,0,0.3)"; ctx.fillRect(player.x,player.y,TILE_SIZE,TILE_SIZE);} drawImage(nuggetImgs[player.direction],player.x,player.y,TILE_SIZE,TILE_SIZE,'#ff69b4'); }
-    function drawEnemies(){ enemies.forEach(e=>{ if(e.alive) drawImage(catImg,e.x,e.y,TILE_SIZE,TILE_SIZE,'#8b4513'); }); }
-
-    function drawUI(){ ctx.fillStyle="#000"; ctx.font="bold 18px Arial"; ctx.strokeStyle="#fff"; ctx.lineWidth=3;
-      const sTxt=`Score: ${score}`, lTxt=`Level: ${level}`;
-      ctx.strokeText(sTxt,10,25); ctx.fillText(sTxt,10,25);
-      ctx.strokeText(lTxt,10,50); ctx.fillText(lTxt,10,50);
-      if(player.invincible>0){ const inv=`Invincible: ${Math.ceil(player.invincible/60)}s`; ctx.strokeText(inv,canvas.width-150,25); ctx.fillText(inv,canvas.width-150,25);} }
-
-    function drawWinAnimation(){ ctx.clearRect(0,0,canvas.width,canvas.height);
-      if(bgWin.complete&&bgWin.naturalWidth>0) ctx.drawImage(bgWin,0,0,canvas.width,canvas.height); else{ ctx.fillStyle="#90ee90"; ctx.fillRect(0,0,canvas.width,canvas.height);}     
-      ctx.fillStyle="#000"; ctx.font="bold 36px Arial"; ctx.strokeStyle="#fff"; ctx.lineWidth=2;
-      const wTxt="🎉 Level Complete! 🎉", sc=`Score: ${score}`, lv=`Level: ${level}`;
-      ctx.strokeText(wTxt,80,100); ctx.fillText(wTxt,80,100);
-      ctx.font="20px Arial"; ctx.strokeText(sc,190,140); ctx.fillText(sc,190,140);
-      ctx.strokeText(lv,200,170); ctx.fillText(lv,200,170);
-      let frameIdx=winAnimationCounter%60, frame;
-      frameIdx<20?frame=nuggetImgs.cheer1:frameIdx<40?frame=nuggetImgs.cheer2:frame=nuggetImgs.cheer3;
-      drawImage(frame,canvas.width/2-40,canvas.height/2-40,80,80,'#ff69b4');
+    // === Update Game ===
+    function updateGame() {
+      switch(currentState) {
+        case GAME_STATE.PLAYING:
+          updatePlayer(); updateEnemies();
+          if(yarns.length===0 && specialYarns.length===0) {
+            currentState=GAME_STATE.WON; playAudio(sfxGameWon); winAnim=0;
+          }
+          break;
+        case GAME_STATE.WON:
+          winAnim++; if(winAnim>=WIN_ANIMATION_DURATION) nextLevel(); break;
+        case GAME_STATE.LEVEL_TRANSITION:
+          transTimer--; if(transTimer<=0) currentState=GAME_STATE.PLAYING; break;
+      }
     }
 
-    function drawLevelTransition(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawMap(); drawYarns(); drawPlayer(); drawEnemies();
-      ctx.fillStyle="rgba(0,0,0,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.fillStyle="#fff"; ctx.font="bold 32px Arial"; ctx.textAlign="center";
+    // === Drawing Helpers ===
+    function drawImage(img,x,y,w,h,fb) {
+      if(img.complete && img.naturalWidth>0) ctx.drawImage(img,x,y,w,h);
+      else { ctx.fillStyle=img.fallbackColor||fb; ctx.fillRect(x,y,w,h);}    }
+
+    function drawMap() {
+      for(let r=0; r<map.length; r++) {
+        for(let c=0; c<map[r].length; c++) {
+          let col = map[r][c]==='#'? '#d9d4b0':'#fff8dc';
+          if(gatesOpen) gatePositions.forEach(g=>{ if(g.row===r && g.col===c) col='#a0d8a0'; });
+          ctx.fillStyle=col; ctx.fillRect(c*TILE_SIZE,r*TILE_SIZE,TILE_SIZE,TILE_SIZE);
+        }
+      }
+    }
+
+    function drawYarns() {
+      yarns.forEach(d=> drawImage(yarnImg,d.x*TILE_SIZE+8,d.y*TILE_SIZE+8,16,16,'#4169e1'));
+      specialYarns.forEach(d=> drawImage(specialYarnImg,d.x*TILE_SIZE+8,d.y*TILE_SIZE+8,16,16,'#ffd700'));
+    }
+
+    function drawPlayer() {
+      if(player.invincible>0) { ctx.fillStyle='rgba(255,255,0,0.3)'; ctx.fillRect(player.x,player.y,TILE_SIZE,TILE_SIZE); }
+      drawImage(nuggetImgs[player.direction],player.x,player.y,TILE_SIZE,TILE_SIZE,'#ff69b4');
+    }
+
+    function drawEnemies() {
+      enemies.forEach(e=>{ if(gatesOpen) drawImage(catImg,e.x,e.y,TILE_SIZE,TILE_SIZE,'#8b4513'); });
+    }
+
+    function drawUI() {
+      ctx.fillStyle='#000'; ctx.font='bold 18px Arial'; ctx.strokeStyle='#fff'; ctx.lineWidth=3;
+      ctx.strokeText(`Score: ${score}`,10,25); ctx.fillText(`Score: ${score}`,10,25);
+      ctx.strokeText(`Level: ${level}`,10,50); ctx.fillText(`Level: ${level}`,10,50);
+      if(player.invincible>0) {
+        const t=`Invincible: ${Math.ceil(player.invincible/60)}s`;
+        ctx.strokeText(t,canvas.width-150,25); ctx.fillText(t,canvas.width-150,25);
+      }
+    }
+
+    function drawWin() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(bgWin.complete && bgWin.naturalWidth>0) ctx.drawImage(bgWin,0,0,canvas.width,canvas.height);
+      else { ctx.fillStyle='#90ee90'; ctx.fillRect(0,0,canvas.width,canvas.height); }
+      ctx.fillStyle='#000'; ctx.font='bold 36px Arial'; ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+      ctx.strokeText('🎉 Level Complete! 🎉',80,100);
+      ctx.fillText('🎉 Level Complete! 🎉',80,100);
+      ctx.font='20px Arial';
+      ctx.strokeText(`Score: ${score}`,190,140); ctx.fillText(`Score: ${score}`,190,140);
+      ctx.strokeText(`Level: ${level}`,200,170); ctx.fillText(`Level: ${level}`,200,170);
+      const f = winAnim%60;
+      const img = f<20?nuggetImgs.cheer1:f<40?nuggetImgs.cheer2:nuggetImgs.cheer3;
+      drawImage(img,canvas.width/2-40,canvas.height/2-40,80,80,'#ff69b4');
+    }
+
+    function drawTransition() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawMap(); drawYarns(); drawPlayer(); drawEnemies();
+      ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#fff'; ctx.font='bold 32px Arial'; ctx.textAlign='center';
       ctx.fillText(`Level ${level}`,canvas.width/2,canvas.height/2-20);
-      ctx.fillText("Get Ready!",canvas.width/2,canvas.height/2+20);
-      ctx.textAlign="left";
+      ctx.fillText('Get Ready!',canvas.width/2,canvas.height/2+20);
+      ctx.textAlign='left';
     }
 
-    function render(){ switch(currentState){ case GAME_STATE.PLAYING: case GAME_STATE.PAUSED: ctx.clearRect(0,0,canvas.width,canvas.height); drawMap(); drawYarns(); drawPlayer(); drawEnemies(); drawUI(); break;
-        case GAME_STATE.WON: drawWinAnimation(); break;
-        case GAME_STATE.LEVEL_TRANSITION: drawLevelTransition(); break;
-    }}
-
-    document.addEventListener("keydown",e=>{
-      if(currentState===GAME_STATE.PLAYING){ const mapK={"ArrowUp":{x:0,y:-1},"ArrowDown":{x:0,y:1},"ArrowLeft":{x:-1,y:0},"ArrowRight":{x:1,y:0}};
-        if(mapK[e.key]){ e.preventDefault(); inputBuffer=mapK[e.key]; }
+    // === Main Render ===
+    function render() {
+      switch(currentState) {
+        case GAME_STATE.PLAYING:
+        case GAME_STATE.PAUSED:
+          ctx.clearRect(0,0,canvas.width,canvas.height);
+          drawMap(); drawYarns(); drawPlayer(); drawEnemies(); drawUI();
+          break;
+        case GAME_STATE.WON:
+          drawWin();
+          break;
+        case GAME_STATE.LEVEL_TRANSITION:
+          drawTransition();
+          break;
       }
-      if((e.key===" "||e.key==="Escape")&&(currentState===GAME_STATE.PLAYING||currentState===GAME_STATE.PAUSED)){ e.preventDefault();
-        if(currentState===GAME_STATE.PLAYING){ currentState=GAME_STATE.PAUSED; pauseOverlay.style.display="block"; bgMusic.pause(); }
-        else{ currentState=GAME_STATE.PLAYING; pauseOverlay.style.display="none"; playAudio(bgMusic); }
+    }
+
+    // === Input Handling ===
+    document.addEventListener('keydown', e => {
+      if(currentState===GAME_STATE.PLAYING) {
+        const km = {'ArrowUp':{x:0,y:-1},'ArrowDown':{x:0,y:1},'ArrowLeft':{x:-1,y:0},'ArrowRight':{x:1,y:0}};
+        if(km[e.key]) { e.preventDefault(); inputBuf=km[e.key]; }
+      }
+      if((e.key===' '||e.key==='Escape')&&(currentState===GAME_STATE.PLAYING||currentState===GAME_STATE.PAUSED)) {
+        e.preventDefault();
+        if(currentState===GAME_STATE.PLAYING) {
+          currentState=GAME_STATE.PAUSED; pauseOverlay.style.display='block'; bgMusic.pause();
+        } else {
+          currentState=GAME_STATE.PLAYING; pauseOverlay.style.display='none'; playAudio(bgMusic);
+        }
       }
     });
 
-    function gameLoop(){ updateGame(); render(); requestAnimationFrame(gameLoop); }
-    startButton.onclick=()=>{ startButton.style.display="none"; pauseOverlay.style.display="none"; resetGame(); playAudio(bgMusic); playAudio(sfxStart); };
+    // === Game Loop ===
+    function gameLoop() {
+      updateGame(); render(); requestAnimationFrame(gameLoop);
+    }
+    startButton.onclick = () => {
+      startButton.style.display = 'none';
+      pauseOverlay.style.display = 'none';
+      resetGame(); playAudio(bgMusic); playAudio(sfxStart);
+    };
     gameLoop();
   </script>
 </body>
