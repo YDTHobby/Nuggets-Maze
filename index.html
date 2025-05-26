@@ -4,233 +4,663 @@
   <meta charset="UTF-8">
   <title>Nugget's Yarn Maze</title>
   <style>
-    body { margin: 0; background-color: #fef6e4; font-family: 'Arial', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
-    canvas { display: block; background-color: #fff8dc; border: 2px solid #333; }
-    #startButtonContainer { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; }
-    #startButton { padding: 16px 32px; font-size: 20px; background-color: #f9c5d1; border: 2px solid #333; border-radius: 8px; cursor: pointer; }
+    body {
+      margin: 0;
+      background-color: #fef6e4;
+      font-family: 'Arial', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    
+    canvas {
+      display: block;
+      margin: 20px auto;
+      background-color: #fff8dc;
+      border: 2px solid #333;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    
+    #gameContainer {
+      position: relative;
+    }
+    
+    #startButton, #pauseOverlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 16px 32px;
+      font-size: 20px;
+      background-color: #f9c5d1;
+      border: 2px solid #333;
+      border-radius: 8px;
+      cursor: pointer;
+      z-index: 10;
+      text-align: center;
+    }
+    
+    #pauseOverlay {
+      background-color: rgba(249, 197, 209, 0.95);
+      padding: 30px;
+      display: none;
+    }
+    
+    #instructions {
+      margin-top: 20px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-width: 512px;
+      text-align: center;
+    }
+    
+    .controls {
+      display: flex;
+      justify-content: space-around;
+      margin: 10px 0;
+      flex-wrap: wrap;
+    }
+    
+    .control {
+      background-color: #f0f0f0;
+      padding: 5px 10px;
+      border-radius: 4px;
+      margin: 2px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
-  <div id="startButtonContainer">
-    <button id="startButton" disabled>Loading Assets...</button>
+  <div id="gameContainer">
+    <button id="startButton">Start Game</button>
+    <div id="pauseOverlay">
+      <h2>Game Paused</h2>
+      <p>Press SPACE or ESC to resume</p>
+    </div>
+    <canvas id="gameCanvas" width="512" height="512"></canvas>
   </div>
-  <canvas id="gameCanvas" width="512" height="512"></canvas>
+  
+  <div id="instructions">
+    <h3>How to Play</h3>
+    <p>Help Nugget collect all the yarn while avoiding the cats!</p>
+    <div class="controls">
+      <span class="control">Arrow Keys: Move</span>
+      <span class="control">Space/ESC: Pause</span>
+    </div>
+    <p>🧶 Blue yarn = 1 point | ✨ Gold yarn = 5 points + invincibility!</p>
+  </div>
+
   <script>
+    // Constants
+    const TILE_SIZE = 32;
+    const PLAYER_SPEED = 2.4;
+    const INVINCIBLE_DURATION = 360;
+    const ENEMY_RESPAWN_TIME = 360;
+    const WIN_ANIMATION_DURATION = 240;
+    const LEVEL_TRANSITION_DELAY = 3000;
+    const MAX_ENEMIES = 6;
+    
+    // Game States
+    const GAME_STATE = {
+      MENU: 0,
+      PLAYING: 1,
+      PAUSED: 2,
+      WON: 3,
+      GAME_OVER: 4,
+      LEVEL_TRANSITION: 5
+    };
+    
+    // Game elements
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
     const startButton = document.getElementById("startButton");
-    const startButtonContainer = document.getElementById("startButtonContainer");
+    const pauseOverlay = document.getElementById("pauseOverlay");
 
-    const TILE_SIZE = 32;
-    const FRAME_DELAY = 1000 / 60;
-    let lastFrameTime = 0;
-
-    // CRITICAL MAP DEFINITION:
-    // Ensure this is EXACTLY what you intend.
-    // Enemy spawns at map[7][7] (or map[7][8] for a second enemy)
-    // map[6][7] (above spawn) needs to be '.'
-    // map[7][6] (left of spawn) needs to be '.'
-   const map = [
-      "################", // 0
-      "#......##......#", // 1
-      "#.####.##.####.#", // 2
-      "#..............#", // 3
-      "#.####.##.####.#", // 4
-      "#..............#", // 5
-      "####. .. .#.####", // 6  <- Ensure map[6][7] and map[6][8] are '.' for upwards exit
-      "####...##...####", // 7  <- map[7][7] and map[7][8] are '.', also map[7][6] and map[7][9] for sideways
-      "####. .. .#.####", // 8  <- Optional: bottom of a small alcove
-      "#..............#", // 9
-      "#.####.##.####.#", // 10
-      "#......##......#", // 11
-      "#.####.##.####.#", // 12
-      "#o............o#", // 13
-      "################"  // 14
+    const map = [
+      "################",
+      "#......##......#",
+      "#.####.##.####.#",
+      "#..............#",
+      "#.####.##.####.#",
+      "#..............#",
+      "####.#.##.#.####",
+      "####.#.##.#.####",
+      "####.#.##.#.####",
+      "#..............#",
+      "#.####.##.####.#",
+      "#......##......#",
+      "#.####.##.####.#",
+      "#o............o#",
+      "################"
     ];
 
-    const assets = {
-      images: {
-        nugget_up: "nugget_up.png", nugget_down: "nugget_down.png", nugget_left: "nugget_left.png", nugget_right: "nugget_right.png",
-        nugget_cheer1: "nugget_cheer1.png", nugget_cheer2: "nugget_cheer2.png", nugget_cheer3: "nugget_cheer3.png",
-        cat_enemy: "cat_enemy.png", yarn_blue: "yarn_blue.png", yarn_gold: "yarn_gold.png", win_background: "win_background.png"
-      },
-      audio: {
-        sfxYarn: "yarn_collect.mp3", sfxSpecial: "powerup.mp3", sfxInvincible: "invincible_loop.mp3",
-        sfxStart: "start_game.mp3", sfxGameWon: "game_won.mp3", sfxMeow: "meow.mp3", bgMusic: "bg_music.mp3"
-      }
+    // Asset loading with fallbacks
+    const nuggetImgs = {
+      up: new Image(),
+      down: new Image(),
+      left: new Image(),
+      right: new Image(),
+      cheer1: new Image(),
+      cheer2: new Image(),
+      cheer3: new Image()
     };
-    const loadedAssets = { images: {}, audio: {} };
-    let assetsToLoadCount = 0, assetsLoadedCount = 0;
+    
+    // Load images with error handling
+    const loadImage = (img, src, fallbackColor = '#ff69b4') => {
+      img.src = src;
+      img.onerror = () => {
+        console.warn(`Failed to load image: ${src}`);
+        img.fallbackColor = fallbackColor;
+      };
+    };
+    
+    loadImage(nuggetImgs.up, "nugget_up.png");
+    loadImage(nuggetImgs.down, "nugget_down.png");
+    loadImage(nuggetImgs.left, "nugget_left.png");
+    loadImage(nuggetImgs.right, "nugget_right.png");
+    loadImage(nuggetImgs.cheer1, "nugget_cheer1.png");
+    loadImage(nuggetImgs.cheer2, "nugget_cheer2.png");
+    loadImage(nuggetImgs.cheer3, "nugget_cheer3.png");
 
-    function loadAssets() {
-      gameState = 'LOADING'; assetsToLoadCount = Object.keys(assets.images).length + Object.keys(assets.audio).length;
-      if (assetsToLoadCount === 0) { checkAllAssetsLoaded(); return; }
-      for (const key in assets.images) { const img = new Image(); img.src = assets.images[key]; loadedAssets.images[key] = img; img.onload = () => assetLoadedCallback(key); img.onerror = () => assetErrorCallback(key); }
-      for (const key in assets.audio) { const audio = new Audio(); audio.src = assets.audio[key]; loadedAssets.audio[key] = audio; audio.onloadeddata = () => assetLoadedCallback(key); audio.onerror = () => assetErrorCallback(key); }
-      loadedAssets.audio.sfxInvincible.loop = true; loadedAssets.audio.bgMusic.loop = true; loadedAssets.audio.bgMusic.volume = 0.3;
+    const yarnImg = new Image();
+    const specialYarnImg = new Image();
+    const catImg = new Image();
+    const bgWin = new Image();
+    
+    loadImage(yarnImg, "yarn_blue.png", '#4169e1');
+    loadImage(specialYarnImg, "yarn_gold.png", '#ffd700');
+    loadImage(catImg, "cat_enemy.png", '#8b4513');
+    loadImage(bgWin, "win_background.png", '#90ee90');
+
+    // Audio with error handling
+    const createAudio = (src) => {
+      const audio = new Audio();
+      audio.src = src;
+      audio.addEventListener('error', () => console.warn(`Failed to load audio: ${src}`));
+      return audio;
+    };
+
+    const sfxYarn = createAudio("yarn_collect.mp3");
+    const sfxSpecial = createAudio("powerup.mp3");
+    const sfxMeow = createAudio("meow.mp3");
+    const sfxInvincible = createAudio("invincible_loop.mp3");
+    const sfxStart = createAudio("start_game.mp3");
+    const sfxGameOver = createAudio("game_over.mp3");
+    const sfxGameWon = createAudio("game_won.mp3");
+    const bgMusic = createAudio("bg_music.mp3");
+    
+    sfxInvincible.loop = true;
+    bgMusic.loop = true;
+
+    // Game state
+    let currentState = GAME_STATE.MENU;
+    let player = {
+      x: TILE_SIZE,
+      y: TILE_SIZE * 3,
+      dirX: 1,
+      dirY: 0,
+      direction: "right",
+      speed: PLAYER_SPEED,
+      invincible: 0
+    };
+
+    let enemies = [];
+    let yarns = [];
+    let specialYarns = [];
+    let score = 0;
+    let level = 1;
+    let winAnimationCounter = 0;
+    let inputBuffer = null;
+    let levelTransitionTimer = 0;
+
+    // Game initialization
+    function initYarns() {
+      yarns = [];
+      specialYarns = [];
+      for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[y].length; x++) {
+          if (map[y][x] === '.') yarns.push({ x, y });
+          if (map[y][x] === 'o') specialYarns.push({ x, y });
+        }
+      }
     }
-    function assetLoadedCallback(assetKeyName) { assetsLoadedCount++; /* console.log(`Loaded: ${assetKeyName}`); */ checkAllAssetsLoaded(); }
-    function assetErrorCallback(assetKeyName) { console.error(`Error loading asset: ${assetKeyName} - ${assets.images[assetKeyName] || assets.audio[assetKeyName]}`); assetsLoadedCount++; checkAllAssetsLoaded(); }
-    function checkAllAssetsLoaded() { if (assetsLoadedCount >= assetsToLoadCount) { console.log("All assets loaded!"); gameState = 'MENU'; startButton.disabled = false; startButton.textContent = "Start Game"; } }
 
-    let gameState = 'LOADING';
-    let player, enemies = [], yarns = [], specialYarns = [], score = 0, winAnimationCounter = 0;
-    const ENEMY_RESPAWN_TIME = 5 * 60;
-    const playAgainButtonRect = { x: canvas.width/2-100, y: canvas.height-100, width: 200, height: 50 };
-
-    function initPlayer() { player = { x:TILE_SIZE*1, y:TILE_SIZE*3, dirX:0,dirY:0, nextDirX:1,nextDirY:0, direction:"right", speed:1.9, invincible:0, currentCheerFrame:0, cheerFrameTimer:0 }; }
-    function initYarns() { yarns = []; specialYarns = []; for (let r=0; r<map.length; r++) for (let c=0; c<map[r].length; c++) { if (map[r][c]==='.') yarns.push({x:c,y:r}); if (map[r][c]==='o') specialYarns.push({x:c,y:r}); } }
     function spawnEnemies(count) {
       enemies = [];
-      for (let i=0; i<count; i++) {
-        const spawnCol = 7 + (i % 2); // col 7 or 8
-        const spawnRow = 7;           // row 7
-        const spawnX = TILE_SIZE * spawnCol;
-        const spawnY = TILE_SIZE * spawnRow;
-        const newEnemy = { x:spawnX, y:spawnY, initialX:spawnX, initialY:spawnY, speed:1.7, alive:true, respawnTimer:0 };
-        enemies.push(newEnemy);
-        console.log(`Spawned enemy ${i} at pixel (x=${newEnemy.x}, y=${newEnemy.y}) on tile (row=${spawnRow}, col=${spawnCol}). Map char: '${map[spawnRow][spawnCol]}'. Alive: ${newEnemy.alive}, Speed: ${newEnemy.speed}`);
+      const enemySpeed = PLAYER_SPEED + (level * 0.2);
+      const enemyCount = Math.min(count, MAX_ENEMIES);
+      
+      for (let i = 0; i < enemyCount; i++) {
+        enemies.push({
+          x: TILE_SIZE * (7 + (i % 2)),
+          y: TILE_SIZE * 7,
+          speed: enemySpeed,
+          alive: true,
+          respawn: 0,
+          moveX: 0,
+          moveY: 0,
+          targetSet: false
+        });
       }
     }
+
     function resetGame() {
-      initPlayer(); initYarns(); spawnEnemies(1); score=0; winAnimationCounter=0; player.currentCheerFrame=0; player.cheerFrameTimer=0;
-      Object.values(loadedAssets.audio).forEach(sound => { if(sound.pause) sound.pause(); if(sound.currentTime !== undefined) sound.currentTime = 0; });
-      if (loadedAssets.audio.bgMusic) loadedAssets.audio.bgMusic.play().catch(e=>console.error("ResetGame bgMusic error:", e));
+      player.x = TILE_SIZE;
+      player.y = TILE_SIZE * 3;
+      player.dirX = 1;
+      player.dirY = 0;
+      player.direction = "right";
+      player.speed = PLAYER_SPEED;
+      player.invincible = 0;
+      
+      score = 0;
+      level = 1;
+      inputBuffer = null;
+      initYarns();
+      spawnEnemies(level + 1);
+      currentState = GAME_STATE.PLAYING;
     }
 
-    function canMove(checkX, checkY, objectWidth = TILE_SIZE, objectHeight = TILE_SIZE) {
-        const points = [
-            {x: checkX, y: checkY},                                       // Top-left
-            {x: checkX + objectWidth - 0.1, y: checkY},                  // Top-right
-            {x: checkX, y: checkY + objectHeight - 0.1},                 // Bottom-left
-            {x: checkX + objectWidth - 0.1, y: checkY + objectHeight - 0.1} // Bottom-right
-        ];
-        for (const p of points) {
-            const c = Math.floor(p.x / TILE_SIZE);
-            const r = Math.floor(p.y / TILE_SIZE);
-            console.log(`canMove: Checking point (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) -> tile (r=${r},c=${c}). Map char: '${(map[r] && map[r][c]) ? map[r][c] : 'OOB'}'`);
-            if (r < 0 || r >= map.length || c < 0 || c >= map[0].length || !map[r] || map[r][c] === '#') {
-                console.log(`canMove: Collision DETECTED at point (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) -> tile (r=${r},c=${c}) which is '${(map[r] && map[r][c]) ? map[r][c] : 'OOB'}'`);
-                return false;
-            }
+    function nextLevel() {
+      level++;
+      score += 100 * level; // Level completion bonus
+      initYarns();
+      spawnEnemies(level + 1);
+      
+      // Reset player position
+      player.x = TILE_SIZE;
+      player.y = TILE_SIZE * 3;
+      player.dirX = 1;
+      player.dirY = 0;
+      player.direction = "right";
+      player.invincible = 0;
+      
+      currentState = GAME_STATE.LEVEL_TRANSITION;
+      levelTransitionTimer = LEVEL_TRANSITION_DELAY;
+    }
+
+    // Utility functions
+    function canMove(x, y) {
+      const col = Math.floor(x / TILE_SIZE);
+      const row = Math.floor(y / TILE_SIZE);
+      return map[row] && map[row][col] !== '#';
+    }
+
+    function playAudio(audio) {
+      try {
+        audio.currentTime = 0;
+        audio.play().catch(e => console.warn('Audio play failed:', e));
+      } catch (e) {
+        console.warn('Audio error:', e);
+      }
+    }
+
+    // Game logic
+    function updatePlayer() {
+      if (currentState !== GAME_STATE.PLAYING) return;
+      
+      const cx = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+      const cy = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
+      const aligned = Math.abs(player.x % TILE_SIZE - TILE_SIZE / 2) < 2 && 
+                     Math.abs(player.y % TILE_SIZE - TILE_SIZE / 2) < 2;
+
+      // Handle input buffer
+      if (aligned && inputBuffer) {
+        if (canMove((cx + inputBuffer.x) * TILE_SIZE, (cy + inputBuffer.y) * TILE_SIZE)) {
+          player.dirX = inputBuffer.x;
+          player.dirY = inputBuffer.y;
+          inputBuffer = null;
+        }
+      }
+
+      // Move player
+      const nextX = player.x + player.dirX * player.speed;
+      const nextY = player.y + player.dirY * player.speed;
+      if (canMove(nextX, nextY)) {
+        player.x = nextX;
+        player.y = nextY;
+      }
+
+      // Update direction for sprite
+      if (player.dirX === 1) player.direction = "right";
+      else if (player.dirX === -1) player.direction = "left";
+      else if (player.dirY === -1) player.direction = "up";
+      else if (player.dirY === 1) player.direction = "down";
+
+      // Cache player tile position
+      const playerTileX = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+      const playerTileY = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
+
+      // Collect yarns
+      yarns = yarns.filter(dot => {
+        if (dot.x === playerTileX && dot.y === playerTileY) {
+          score++;
+          playAudio(sfxYarn);
+          return false;
         }
         return true;
-    }
+      });
 
-    function updatePlayer() {
-      const pTileX=Math.floor((player.x+TILE_SIZE/2)/TILE_SIZE), pTileY=Math.floor((player.y+TILE_SIZE/2)/TILE_SIZE);
-      const cOffX=player.x-(pTileX*TILE_SIZE), cOffY=player.y-(pTileY*TILE_SIZE);
-      const alignThr=player.speed*1.5; let canTurn=false;
-      if(player.nextDirX!==0){if(Math.abs(cOffY)<alignThr)canTurn=true;}else if(player.nextDirY!==0){if(Math.abs(cOffX)<alignThr)canTurn=true;}
-      if(player.dirX===0&&player.dirY===0&&(player.nextDirX!==0||player.nextDirY!==0))canTurn=true;
-      if(canTurn){const tTileX=pTileX+player.nextDirX,tTileY=pTileY+player.nextDirY;if(map[tTileY]&&map[tTileY][tTileX]!=='#'){player.dirX=player.nextDirX;player.dirY=player.nextDirY;player.nextDirX=0;player.nextDirY=0;if(player.dirX!==0)player.y=pTileY*TILE_SIZE;if(player.dirY!==0)player.x=pTileX*TILE_SIZE;}}
-      let nX=player.x+player.dirX*player.speed,nY=player.y+player.dirY*player.speed;
-      if(player.dirX!==0){if(canMove(nX,player.y))player.x=nX;else player.x=(player.dirX>0)?(pTileX*TILE_SIZE):(pTileX*TILE_SIZE);}
-      if(player.dirY!==0){if(canMove(player.x,nY))player.y=nY;else player.y=(player.dirY>0)?(pTileY*TILE_SIZE):(pTileY*TILE_SIZE);}
-      if(player.dirX===1)player.direction="right";else if(player.dirX===-1)player.direction="left";else if(player.dirY===-1)player.direction="up";else if(player.dirY===1)player.direction="down";
-      const collTileX=Math.floor((player.x+TILE_SIZE/2)/TILE_SIZE),collTileY=Math.floor((player.y+TILE_SIZE/2)/TILE_SIZE);
-      yarns=yarns.filter(y=>{if(y.x===collTileX&&y.y===collTileY){score++;if(loadedAssets.audio.sfxYarn){loadedAssets.audio.sfxYarn.currentTime=0;loadedAssets.audio.sfxYarn.play().catch(e=>console.error(e));}return false;}return true;});
-      specialYarns=specialYarns.filter(sy=>{if(sy.x===collTileX&&sy.y===collTileY){player.invincible=360;score+=5;if(loadedAssets.audio.sfxSpecial)loadedAssets.audio.sfxSpecial.play().catch(e=>console.error(e));if(loadedAssets.audio.sfxInvincible)loadedAssets.audio.sfxInvincible.play().catch(e=>console.error(e));return false;}return true;});
-      if(player.invincible>0){player.invincible--;if(player.invincible===0&&loadedAssets.audio.sfxInvincible)loadedAssets.audio.sfxInvincible.pause();}
-      if(yarns.length===0&&specialYarns.length===0){gameState='WIN';}
+      // Collect special yarns
+      specialYarns = specialYarns.filter(dot => {
+        if (dot.x === playerTileX && dot.y === playerTileY) {
+          player.invincible = INVINCIBLE_DURATION;
+          score += 5;
+          playAudio(sfxSpecial);
+          playAudio(sfxInvincible);
+          return false;
+        }
+        return true;
+      });
+
+      // Handle invincibility
+      if (player.invincible > 0) {
+        player.invincible--;
+        if (player.invincible === 0) {
+          sfxInvincible.pause();
+        }
+      }
     }
 
     function updateEnemies() {
-      enemies.forEach((enemy, index) => {
-        console.log(`--- Enemy ${index} Update Cycle ---`);
-        console.log(`Enemy ${index} - Initial State: Alive: ${enemy.alive}, Pos: (${enemy.x.toFixed(1)},${enemy.y.toFixed(1)}), RespawnTimer: ${enemy.respawnTimer}, Speed: ${enemy.speed}`);
-        if (!enemy.alive) { enemy.respawnTimer--; if(enemy.respawnTimer<=0){enemy.x=enemy.initialX;enemy.y=enemy.initialY;enemy.alive=true;console.log(`Enemy ${index} RESPAWNED at (${enemy.x.toFixed(1)},${enemy.y.toFixed(1)})`);} return; }
-        if (!player) { console.error(`Enemy ${index}: Player object is undefined. Cannot update AI.`); return; }
-        if (typeof enemy.speed !== 'number' || enemy.speed <= 0) { console.error(`Enemy ${index}: Speed is invalid (${enemy.speed}). Cannot move.`); return; }
+      if (currentState !== GAME_STATE.PLAYING) return;
+      
+      const playerTileX = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+      const playerTileY = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
 
-        const dx = player.x - enemy.x; const dy = player.y - enemy.y;
-        let targetMoveX = 0; let targetMoveY = 0;
-        const deadZone = TILE_SIZE / 8; // Only attempt to move if further than this
-
-        if (Math.abs(dx) > Math.abs(dy)) { if (Math.abs(dx) > deadZone) targetMoveX = Math.sign(dx); }
-        else { if (Math.abs(dy) > deadZone) targetMoveY = Math.sign(dy); }
-
-        if (targetMoveX === 0 && targetMoveY === 0) { // If primary choice was 0 (aligned or in dead zone), try other axis
-            if (Math.abs(dx) > deadZone && Math.abs(dx) >= Math.abs(dy)) targetMoveX = Math.sign(dx);
-            else if (Math.abs(dy) > deadZone) targetMoveY = Math.sign(dy);
-        }
-        console.log(`Enemy ${index} - PlayerAt: (${player.x.toFixed(1)},${player.y.toFixed(1)}), dX: ${dx.toFixed(1)}, dY: ${dy.toFixed(1)}, Calculated targetMoveX: ${targetMoveX}, targetMoveY: ${targetMoveY}`);
-
-        let movedThisFrame = false;
-        if (targetMoveX !== 0) { // Attempt X move
-            const nextX = enemy.x + targetMoveX * enemy.speed;
-            console.log(`Enemy ${index} - Attempt X: nextX=${nextX.toFixed(1)} (currentY=${enemy.y.toFixed(1)})`);
-            if (canMove(nextX, enemy.y)) { enemy.x = nextX; movedThisFrame = true; console.log(`Enemy ${index} - SUCCESS X MOVE to ${enemy.x.toFixed(1)}`); }
-            else { console.log(`Enemy ${index} - BLOCKED X MOVE attempt to ${nextX.toFixed(1)}`); }
+      enemies.forEach(e => {
+        if (!e.alive) {
+          e.respawn--;
+          if (e.respawn <= 0) {
+            e.x = TILE_SIZE * 7;
+            e.y = TILE_SIZE * 7;
+            e.alive = true;
+            e.targetSet = false;
+          }
+          return;
         }
 
-        if (targetMoveY !== 0 && !movedThisFrame) { // Attempt Y move if Y is targeted AND X move didn't happen
-            const nextY = enemy.y + targetMoveY * enemy.speed;
-            console.log(`Enemy ${index} - Attempt Y: nextY=${nextY.toFixed(1)} (currentX=${enemy.x.toFixed(1)})`);
-            if (canMove(enemy.x, nextY)) { enemy.y = nextY; movedThisFrame = true; console.log(`Enemy ${index} - SUCCESS Y MOVE to ${enemy.y.toFixed(1)}`); }
-            else { console.log(`Enemy ${index} - BLOCKED Y MOVE attempt to ${nextY.toFixed(1)}`); }
-        }
-        
-        // Fallback if primary chosen direction was blocked and it hasn't moved yet.
-        // This logic is to ensure if the direct path (e.g. X) is blocked, it tries the other (Y).
-        if (!movedThisFrame && (targetMoveX !== 0 || targetMoveY !== 0)) { // If there was an intent to move
-            console.log(`Enemy ${index} - Fallback: Initial attempts failed or not applicable. Trying other axis.`);
-            if (targetMoveX !== 0 && targetMoveY === 0 && Math.abs(dy) > deadZone ) { // Tried X, X blocked, now try Y
-                const fallbackNextY = enemy.y + Math.sign(dy) * enemy.speed;
-                console.log(`Enemy ${index} - Fallback (Y after X failed): nextY=${fallbackNextY.toFixed(1)}`);
-                if (canMove(enemy.x, fallbackNextY)) { enemy.y = fallbackNextY; movedThisFrame = true; console.log(`Enemy ${index} - Fallback: SUCCESS Y MOVE to ${enemy.y.toFixed(1)}`); }
-                else { console.log(`Enemy ${index} - Fallback: BLOCKED Y MOVE to ${fallbackNextY.toFixed(1)}`); }
-            } else if (targetMoveY !== 0 && targetMoveX === 0 && Math.abs(dx) > deadZone && !movedThisFrame) { // Tried Y, Y blocked, now try X
-                const fallbackNextX = enemy.x + Math.sign(dx) * enemy.speed;
-                console.log(`Enemy ${index} - Fallback (X after Y failed): nextX=${fallbackNextX.toFixed(1)}`);
-                if (canMove(fallbackNextX, enemy.y)) { enemy.x = fallbackNextX; movedThisFrame = true; console.log(`Enemy ${index} - Fallback: SUCCESS X MOVE to ${enemy.x.toFixed(1)}`); }
-                else { console.log(`Enemy ${index} - Fallback: BLOCKED X MOVE to ${fallbackNextX.toFixed(1)}`); }
-            }
+        // Optimized AI - only recalculate when centered or blocked
+        const centered = Math.abs(e.x % TILE_SIZE) < 2 && Math.abs(e.y % TILE_SIZE) < 2;
+        if (centered || !e.targetSet) {
+          const dx = player.x - e.x;
+          const dy = player.y - e.y;
+          e.moveX = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0;
+          e.moveY = Math.abs(dx) <= Math.abs(dy) ? Math.sign(dy) : 0;
+          e.targetSet = true;
         }
 
-        if (!movedThisFrame && (Math.abs(dx) > deadZone || Math.abs(dy) > deadZone)) { console.log(`Enemy ${index} - FINAL VERDICT: STILL DID NOT MOVE despite having a target direction and available speed.`); }
+        // Move enemy
+        const nextX = e.x + e.moveX * e.speed;
+        const nextY = e.y + e.moveY * e.speed;
+        if (canMove(nextX, nextY)) {
+          e.x = nextX;
+          e.y = nextY;
+        } else {
+          e.targetSet = false; // Recalculate when blocked
+        }
 
-        const pTileX=Math.floor((player.x+TILE_SIZE/2)/TILE_SIZE),pTileY=Math.floor((player.y+TILE_SIZE/2)/TILE_SIZE);
-        const eTileX=Math.floor((enemy.x+TILE_SIZE/2)/TILE_SIZE),eTileY=Math.floor((enemy.y+TILE_SIZE/2)/TILE_SIZE);
-        if(pTileX===eTileX && pTileY===eTileY){ if(player.invincible>0){enemy.alive=false;enemy.respawnTimer=ENEMY_RESPAWN_TIME;score+=10;if(loadedAssets.audio.sfxMeow)loadedAssets.audio.sfxMeow.play().catch(e=>console.error(e));}else{gameState='GAME_OVER';}}
+        // Check collision with player
+        const ex = Math.floor((e.x + TILE_SIZE / 2) / TILE_SIZE);
+        const ey = Math.floor((e.y + TILE_SIZE / 2) / TILE_SIZE);
+
+        if (playerTileX === ex && playerTileY === ey) {
+          if (player.invincible > 0) {
+            e.alive = false;
+            e.respawn = ENEMY_RESPAWN_TIME;
+            score += 10;
+            playAudio(sfxMeow);
+          } else {
+            currentState = GAME_STATE.GAME_OVER;
+            playAudio(sfxGameOver);
+            bgMusic.pause();
+            setTimeout(() => {
+              alert("Game Over! Nugget got caught! Final Score: " + score);
+              currentState = GAME_STATE.MENU;
+              startButton.style.display = "block";
+              startButton.innerText = "Play Again";
+            }, 100);
+          }
+        }
       });
     }
 
-    function updateGame() { updatePlayer(); updateEnemies(); }
-    function drawMap() { for(let r=0;r<map.length;r++)for(let c=0;c<map[r].length;c++){ ctx.fillStyle=map[r][c]==='#'?"#d9d4b0":"#fff8dc"; ctx.fillRect(c*TILE_SIZE,r*TILE_SIZE,TILE_SIZE,TILE_SIZE); }}
-    function drawYarns() { yarns.forEach(y=>ctx.drawImage(loadedAssets.images.yarn_blue,y.x*TILE_SIZE+8,y.y*TILE_SIZE+8,16,16)); specialYarns.forEach(sy=>ctx.drawImage(loadedAssets.images.yarn_gold,sy.x*TILE_SIZE+8,sy.y*TILE_SIZE+8,16,16));}
-    function drawPlayer() { if(player.invincible>0&&Math.floor(player.invincible/6)%2===0){ ctx.globalAlpha=0.7;ctx.fillStyle="rgba(255,255,0,0.5)"; ctx.beginPath();ctx.arc(player.x+TILE_SIZE/2,player.y+TILE_SIZE/2,TILE_SIZE*0.6,0,Math.PI*2);ctx.fill(); ctx.globalAlpha=1.0;} const sprite=loadedAssets.images['nugget_'+player.direction]; if(sprite&&sprite.complete)ctx.drawImage(sprite,player.x,player.y,TILE_SIZE,TILE_SIZE); }
-    function drawEnemies() { enemies.forEach(e=>{if(loadedAssets.images.cat_enemy&&loadedAssets.images.cat_enemy.complete){ if(!e.alive)ctx.globalAlpha=0.4; ctx.drawImage(loadedAssets.images.cat_enemy,e.x,e.y,TILE_SIZE,TILE_SIZE); ctx.globalAlpha=1.0; }}); }
-    function drawScore() { ctx.fillStyle="#333";ctx.font="20px Arial";ctx.textAlign="left"; ctx.fillText("Score: "+score,10,25); }
-    function drawGame() { drawMap();drawYarns();drawPlayer();drawEnemies();drawScore(); }
-    function drawLoadingScreen() { ctx.fillStyle="#fef6e4";ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle="#333";ctx.font="24px Arial";ctx.textAlign="center"; ctx.fillText(`Loading Assets... (${assetsLoadedCount}/${assetsToLoadCount})`,canvas.width/2,canvas.height/2); }
-    function drawMenuScreen() { ctx.fillStyle="#fef6e4";ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle="#333";ctx.font="bold 36px Arial";ctx.textAlign="center"; ctx.fillText("Nugget's Yarn Maze",canvas.width/2,canvas.height/2-60); }
-    function drawTextButton(text,rect){ ctx.fillStyle="#f9c5d1";ctx.fillRect(rect.x,rect.y,rect.width,rect.height); ctx.strokeStyle="#333";ctx.lineWidth=2;ctx.strokeRect(rect.x,rect.y,rect.width,rect.height); ctx.fillStyle="#333";ctx.font="20px Arial";ctx.textAlign="center";ctx.textBaseline="middle"; ctx.fillText(text,rect.x+rect.width/2,rect.y+rect.height/2); }
-    function drawWinScreen() { if(loadedAssets.images.win_background&&loadedAssets.images.win_background.complete)ctx.drawImage(loadedAssets.images.win_background,0,0,canvas.width,canvas.height); else{ctx.fillStyle="#aaffaa";ctx.fillRect(0,0,canvas.width,canvas.height);} ctx.fillStyle="rgba(0,0,0,0.5)";ctx.fillRect(50,canvas.height/2-100,canvas.width-100,200); ctx.fillStyle="#fff";ctx.font="bold 48px Arial";ctx.textAlign="center"; ctx.fillText("You Won!",canvas.width/2,canvas.height/2-50); ctx.font="24px Arial";ctx.fillText("Final Score: "+score,canvas.width/2,canvas.height/2); player.cheerFrameTimer++; if(player.cheerFrameTimer>10){player.currentCheerFrame=(player.currentCheerFrame+1)%3;player.cheerFrameTimer=0;} const cheerSprite=[loadedAssets.images.nugget_cheer1,loadedAssets.images.nugget_cheer2,loadedAssets.images.nugget_cheer3][player.currentCheerFrame]; if(cheerSprite&&cheerSprite.complete)ctx.drawImage(cheerSprite,canvas.width/2-TILE_SIZE,canvas.height/2+30,TILE_SIZE*2,TILE_SIZE*2); drawTextButton("Play Again?",playAgainButtonRect); }
-    function drawGameOverScreen() { ctx.fillStyle="#f8d7da";ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle="rgba(0,0,0,0.5)";ctx.fillRect(50,canvas.height/2-75,canvas.width-100,150); ctx.fillStyle="#721c24";ctx.font="bold 48px Arial";ctx.textAlign="center"; ctx.fillText("Game Over!",canvas.width/2,canvas.height/2-20); ctx.font="24px Arial";ctx.fillText("Final Score: "+score,canvas.width/2,canvas.height/2+20); drawTextButton("Try Again?",playAgainButtonRect); }
+    function updateGame() {
+      switch (currentState) {
+        case GAME_STATE.PLAYING:
+          updatePlayer();
+          updateEnemies();
+          
+          // Check win condition
+          if (yarns.length === 0 && specialYarns.length === 0) {
+            currentState = GAME_STATE.WON;
+            playAudio(sfxGameWon);
+            winAnimationCounter = 0;
+          }
+          break;
+          
+        case GAME_STATE.WON:
+          winAnimationCounter++;
+          if (winAnimationCounter >= WIN_ANIMATION_DURATION) {
+            nextLevel();
+          }
+          break;
+          
+        case GAME_STATE.LEVEL_TRANSITION:
+          levelTransitionTimer--;
+          if (levelTransitionTimer <= 0) {
+            currentState = GAME_STATE.PLAYING;
+          }
+          break;
+      }
+    }
 
-    document.addEventListener("keydown",e=>{ if(gameState!=='PLAYING')return; if(["ArrowUp","w","W"].includes(e.key)){player.nextDirX=0;player.nextDirY=-1;} else if(["ArrowDown","s","S"].includes(e.key)){player.nextDirX=0;player.nextDirY=1;} else if(["ArrowLeft","a","A"].includes(e.key)){player.nextDirX=-1;player.nextDirY=0;} else if(["ArrowRight","d","D"].includes(e.key)){player.nextDirX=1;player.nextDirY=0;} if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key))e.preventDefault(); });
-    canvas.addEventListener('click',e=>{ if(gameState==='WIN'||gameState==='GAME_OVER'){ const rect=canvas.getBoundingClientRect(); const cX=e.clientX-rect.left,cY=e.clientY-rect.top; if(cX>=playAgainButtonRect.x&&cX<=playAgainButtonRect.x+playAgainButtonRect.width&&cY>=playAgainButtonRect.y&&cY<=playAgainButtonRect.y+playAgainButtonRect.height){ resetGame();gameState='PLAYING';}}});
+    // Rendering functions
+    function drawImage(img, x, y, width, height, fallbackColor) {
+      if (img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, x, y, width, height);
+      } else if (img.fallbackColor || fallbackColor) {
+        ctx.fillStyle = img.fallbackColor || fallbackColor;
+        ctx.fillRect(x, y, width, height);
+      }
+    }
 
-    function gameLoop(timestamp) {
-      if(!lastFrameTime)lastFrameTime=timestamp; const delta=timestamp-lastFrameTime;
-      if(delta>=FRAME_DELAY){
-        lastFrameTime=timestamp-(delta%FRAME_DELAY); const stateBeforeUpdate=gameState;
-        if(gameState==='PLAYING')updateGame();
-        if(stateBeforeUpdate==='PLAYING'&&(gameState==='WIN'||gameState==='GAME_OVER')){ if(loadedAssets.audio.bgMusic)loadedAssets.audio.bgMusic.pause(); if(loadedAssets.audio.sfxInvincible)loadedAssets.audio.sfxInvincible.pause(); if(gameState==='WIN'&&loadedAssets.audio.sfxGameWon){loadedAssets.audio.sfxGameWon.currentTime=0;loadedAssets.audio.sfxGameWon.play().catch(e=>console.error("sfxGameWon error:",e));}}
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        switch(gameState){
-          case 'LOADING': startButtonContainer.style.display="block";startButton.disabled=true;startButton.textContent="Loading Assets...";drawLoadingScreen(); break;
-          case 'MENU': startButtonContainer.style.display="block";startButton.disabled=false;startButton.textContent="Start Game";drawMenuScreen(); break;
-          case 'PLAYING': startButtonContainer.style.display="none";drawGame(); break;
-          case 'GAME_OVER': startButtonContainer.style.display="none";drawGameOverScreen(); break;
-          case 'WIN': startButtonContainer.style.display="none";drawWinScreen(); break;
+    function drawMap() {
+      for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[y].length; x++) {
+          ctx.fillStyle = map[y][x] === '#' ? "#d9d4b0" : "#fff8dc";
+          ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
         }
       }
+    }
+
+    function drawYarns() {
+      yarns.forEach(dot => {
+        drawImage(yarnImg, dot.x * TILE_SIZE + 8, dot.y * TILE_SIZE + 8, 16, 16, '#4169e1');
+      });
+      specialYarns.forEach(dot => {
+        drawImage(specialYarnImg, dot.x * TILE_SIZE + 8, dot.y * TILE_SIZE + 8, 16, 16, '#ffd700');
+      });
+    }
+
+    function drawPlayer() {
+      if (player.invincible > 0) {
+        ctx.fillStyle = "rgba(255, 255, 0, 0.3)";
+        ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
+      }
+      drawImage(nuggetImgs[player.direction], player.x, player.y, TILE_SIZE, TILE_SIZE, '#ff69b4');
+    }
+
+    function drawEnemies() {
+      enemies.forEach(e => {
+        if (e.alive) {
+          drawImage(catImg, e.x, e.y, TILE_SIZE, TILE_SIZE, '#8b4513');
+        }
+      });
+    }
+
+    function drawUI() {
+      ctx.fillStyle = "#000";
+      ctx.font = "bold 18px Arial";
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 3;
+      
+      const scoreText = `Score: ${score}`;
+      const levelText = `Level: ${level}`;
+      
+      ctx.strokeText(scoreText, 10, 25);
+      ctx.fillText(scoreText, 10, 25);
+      
+      ctx.strokeText(levelText, 10, 50);
+      ctx.fillText(levelText, 10, 50);
+      
+      if (player.invincible > 0) {
+        const invText = `Invincible: ${Math.ceil(player.invincible / 60)}s`;
+        ctx.strokeText(invText, canvas.width - 150, 25);
+        ctx.fillText(invText, canvas.width - 150, 25);
+      }
+    }
+
+    function drawWinAnimation() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Background
+      if (bgWin.complete && bgWin.naturalWidth > 0) {
+        ctx.drawImage(bgWin, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.fillStyle = "#90ee90";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      
+      // Text
+      ctx.fillStyle = "#000";
+      ctx.font = "bold 36px Arial";
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      
+      const winText = "🎉 Level Complete! 🎉";
+      const scoreText = `Score: ${score}`;
+      const levelText = `Level: ${level}`;
+      
+      ctx.strokeText(winText, 80, 100);
+      ctx.fillText(winText, 80, 100);
+      
+      ctx.font = "20px Arial";
+      ctx.strokeText(scoreText, 190, 140);
+      ctx.fillText(scoreText, 190, 140);
+      
+      ctx.strokeText(levelText, 200, 170);
+      ctx.fillText(levelText, 200, 170);
+
+      // Animated Nugget
+      let frame;
+      const animFrame = winAnimationCounter % 60;
+      if (animFrame < 20) frame = nuggetImgs.cheer1;
+      else if (animFrame < 40) frame = nuggetImgs.cheer2;
+      else frame = nuggetImgs.cheer3;
+      
+      drawImage(frame, canvas.width / 2 - 40, canvas.height / 2 - 40, 80, 80, '#ff69b4');
+    }
+
+    function drawLevelTransition() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawMap();
+      drawYarns();
+      drawPlayer();
+      drawEnemies();
+      
+      // Overlay
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 32px Arial";
+      ctx.textAlign = "center";
+      
+      const levelText = `Level ${level}`;
+      const readyText = "Get Ready!";
+      
+      ctx.fillText(levelText, canvas.width / 2, canvas.height / 2 - 20);
+      ctx.fillText(readyText, canvas.width / 2, canvas.height / 2 + 20);
+      
+      ctx.textAlign = "left";
+    }
+
+    function render() {
+      switch (currentState) {
+        case GAME_STATE.PLAYING:
+        case GAME_STATE.PAUSED:
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          drawMap();
+          drawYarns();
+          drawPlayer();
+          drawEnemies();
+          drawUI();
+          break;
+          
+        case GAME_STATE.WON:
+          drawWinAnimation();
+          break;
+          
+        case GAME_STATE.LEVEL_TRANSITION:
+          drawLevelTransition();
+          break;
+      }
+    }
+
+    // Input handling
+    document.addEventListener("keydown", e => {
+      if (currentState === GAME_STATE.PLAYING) {
+        const keyMap = {
+          "ArrowUp": { x: 0, y: -1 },
+          "ArrowDown": { x: 0, y: 1 },
+          "ArrowLeft": { x: -1, y: 0 },
+          "ArrowRight": { x: 1, y: 0 }
+        };
+        
+        if (keyMap[e.key]) {
+          e.preventDefault();
+          inputBuffer = keyMap[e.key];
+        }
+      }
+      
+      // Pause functionality
+      if ((e.key === " " || e.key === "Escape") && 
+          (currentState === GAME_STATE.PLAYING || currentState === GAME_STATE.PAUSED)) {
+        e.preventDefault();
+        if (currentState === GAME_STATE.PLAYING) {
+          currentState = GAME_STATE.PAUSED;
+          pauseOverlay.style.display = "block";
+          bgMusic.pause();
+        } else {
+          currentState = GAME_STATE.PLAYING;
+          pauseOverlay.style.display = "none";
+          playAudio(bgMusic);
+        }
+      }
+    });
+
+    // Game loop
+    function gameLoop() {
+      updateGame();
+      render();
       requestAnimationFrame(gameLoop);
     }
-    startButton.onclick=()=>{ if(gameState==='MENU'||(gameState==='LOADING'&&assetsLoadedCount>=assetsToLoadCount)){ if(assetsLoadedCount<assetsToLoadCount){console.warn("StartButton: Assets not fully loaded.");return;} startButtonContainer.style.display="none"; resetGame(); gameState='PLAYING'; if(loadedAssets.audio.sfxStart){loadedAssets.audio.sfxStart.currentTime=0;loadedAssets.audio.sfxStart.play().catch(e=>console.error("sfxStart error:",e));}}};
-    loadAssets(); requestAnimationFrame(gameLoop);
+
+    // Start button handler
+    startButton.onclick = () => {
+      startButton.style.display = "none";
+      pauseOverlay.style.display = "none";
+      resetGame();
+      playAudio(bgMusic);
+      playAudio(sfxStart);
+    };
+
+    // Initialize and start
+    gameLoop();
   </script>
 </body>
 </html>
