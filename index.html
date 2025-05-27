@@ -89,8 +89,8 @@
 <script>
   // === Constants ===
   const TILE_SIZE = 32;
-  const PLAYER_SPEED = 1.92;
-  const ENEMY_SPEED_BASE = 1.92;
+  const PLAYER_SPEED = 1.5;
+  const ENEMY_SPEED_BASE = 1.5;
   const INVINCIBLE_DURATION = 360;
   const ENEMY_SPAWN_DELAY = 480;
   const WIN_ANIMATION_DURATION = 1000;
@@ -326,42 +326,40 @@ canvas.addEventListener('touchend', e => {
   }
   // === Update Player ===
   function updatePlayer() {
-    if (currentState !== GAME_STATE.PLAYING) return;
+      if (currentState !== GAME_STATE.PLAYING) return;
 
-    const px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
-    const py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
-    const aligned = Math.abs(player.x - px * TILE_SIZE) < 4 && Math.abs(player.y - py * TILE_SIZE) < 4;
+      const px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+      const py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
+      const aligned = Math.abs(player.x - px * TILE_SIZE) < 2 && Math.abs(player.y - py * TILE_SIZE) < 2;
 
-    if (aligned && inputBuf) {
-      const tx = (px + inputBuf.x) * TILE_SIZE;
-      const ty = (py + inputBuf.y) * TILE_SIZE;
-      if (canMove(tx, ty)) {
-        player.dirX = inputBuf.x;
-        player.dirY = inputBuf.y;
+      if (aligned && inputBuf) {
+        const tx = (px + inputBuf.x) * TILE_SIZE;
+        const ty = (py + inputBuf.y) * TILE_SIZE;
+        if (canMove(tx, ty)) {
+          player.dirX = inputBuf.x;
+          player.dirY = inputBuf.y;
+          inputBuf = null;
+        }
+      }
+
+      const nx = player.x + player.dirX * player.speed;
+      const ny = player.y + player.dirY * player.speed;
+
+      if (canMove(nx, ny)) {
+        player.x = nx;
+        player.y = ny;
+      } else {
+        player.dirX = 0;
+        player.dirY = 0;
         inputBuf = null;
       }
+
+      player.direction =
+        player.dirX > 0 ? 'right' :
+        player.dirX < 0 ? 'left' :
+        player.dirY < 0 ? 'up' :
+        player.dirY > 0 ? 'down' : player.direction;
     }
-
-    const nx = player.x + player.dirX * player.speed;
-    const ny = player.y + player.dirY * player.speed;
-
-    if (canMove(nx, ny)) {
-      player.x = nx;
-      player.y = ny;
-    } else {
-      player.x = px * TILE_SIZE;
-      player.y = py * TILE_SIZE;
-      player.dirX = 0;
-      player.dirY = 0;
-      inputBuf = null;
-    }
-
-    player.direction =
-      player.dirX > 0 ? 'right' :
-      player.dirX < 0 ? 'left' :
-      player.dirY < 0 ? 'up' :
-      player.dirY > 0 ? 'down' : player.direction;
-
     // Collect yarn
     yarns = yarns.filter(d => {
       if (d.x === px && d.y === py) {
@@ -398,46 +396,47 @@ canvas.addEventListener('touchend', e => {
   }
 
   // === Update Enemies ===
-  function updateEnemies() {
-    if (currentState !== GAME_STATE.PLAYING) return;
-    frameCounter++;
+ function updateEnemies() {
+      if (currentState !== GAME_STATE.PLAYING) return;
+      frameCounter++;
 
-    if (!gatesOpen && frameCounter >= ENEMY_SPAWN_DELAY) gatesOpen = true;
+      if (!gatesOpen && frameCounter >= ENEMY_SPAWN_DELAY) gatesOpen = true;
 
-    const px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
-    const py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
+      const px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
+      const py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
 
-    enemies.forEach(e => {
-      if (!gatesOpen) return;
+      enemies.forEach(e => {
+        if (!gatesOpen) return;
 
-      const centered = Math.abs(e.x - Math.round(e.x / TILE_SIZE) * TILE_SIZE) < 4 &&
-                       Math.abs(e.y - Math.round(e.y / TILE_SIZE) * TILE_SIZE) < 4;
+        const centered = Math.abs(e.x % TILE_SIZE - TILE_SIZE / 2) < 2 && Math.abs(e.y % TILE_SIZE - TILE_SIZE / 2) < 2;
 
-      if (centered || !e.targetSet || e.lastDir++ > 30) {
-        if (Math.random() < e.intelligence) {
-          const dx = player.x - e.x;
-          const dy = player.y - e.y;
-          e.moveX = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0;
-          e.moveY = Math.abs(dx) <= Math.abs(dy) ? Math.sign(dy) : 0;
-        } else {
-          const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
-          const rd = dirs[Math.floor(Math.random() * dirs.length)];
-          e.moveX = rd.x;
-          e.moveY = rd.y;
+        if (centered || !e.targetSet || e.lastDir++ > 45) {
+          if (Math.random() < e.intelligence) {
+            const dx = player.x - e.x;
+            const dy = player.y - e.y;
+            e.moveX = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0;
+            e.moveY = Math.abs(dx) <= Math.abs(dy) ? Math.sign(dy) : 0;
+          } else {
+            const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+            const rd = dirs[Math.floor(Math.random() * dirs.length)];
+            e.moveX = rd.x;
+            e.moveY = rd.y;
+          }
+          e.targetSet = true;
+          e.lastDir = 0;
         }
-        e.targetSet = true;
-        e.lastDir = 0;
-      }
 
-      const ex = e.x + e.moveX * e.speed;
-      const ey = e.y + e.moveY * e.speed;
+        const ex = e.x + e.moveX * e.speed;
+        const ey = e.y + e.moveY * e.speed;
 
-      if (canMove(ex, ey, true)) {
-        e.x = ex;
-        e.y = ey;
-      } else {
-        e.targetSet = false;
-      }
+        if (canMove(ex, ey, true)) {
+          e.x = ex;
+          e.y = ey;
+        } else {
+          e.targetSet = false;
+        }
+      });
+    }
 
       const ecx = Math.floor((e.x + TILE_SIZE / 2) / TILE_SIZE);
       const ecy = Math.floor((e.y + TILE_SIZE / 2) / TILE_SIZE);
