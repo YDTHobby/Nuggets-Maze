@@ -43,6 +43,14 @@
       cursor: pointer;
       z-index: 10;
       text-align: center;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #startButton:active, #startButton:hover {
+      background-color: #f7b3c2;
+      transform: translate(-50%, -50%) scale(0.95);
     }
     #pauseOverlay {
       background-color: rgba(249, 197, 209, 0.95);
@@ -88,6 +96,7 @@
     <p>Help Nugget collect all the yarn while avoiding the cat!</p>
     <div class="controls">
       <span class="control">Arrow Keys: Move</span>
+      <span class="control">Touch/Swipe: Move</span>
       <span class="control">Space/ESC: Pause</span>
     </div>
     <p>🥶 Blue yarn = 1 point | ✨ Gold yarn = 5 points + invincibility!</p>
@@ -96,13 +105,13 @@
 <script>
   // === Constants ===
   const TILE_SIZE = 32;
-  const PLAYER_SPEED = 1.536; // Reduced by 20% from 1.92
-  const ENEMY_SPEED = 1.536; // Reduced by 20% from 1.92
+  const PLAYER_SPEED = 1.536;
+  const ENEMY_SPEED = 1.536;
   const INVINCIBLE_DURATION = 360;
   const ENEMY_SPAWN_DELAY = 480;
   const WIN_ANIMATION_DURATION = 1000;
   const LEVEL_TRANSITION_DELAY = 3000;
-  const EARLY_INPUT_THRESHOLD = 8; // Allow direction change when within 8 pixels of grid alignment
+  const EARLY_INPUT_THRESHOLD = 8;
 
   const GAME_STATE = {
     MENU: 0,
@@ -239,7 +248,7 @@
       dirX: 0,
       dirY: 0,
       intelligence: Math.min(0.3 + level * 0.1, 0.9),
-      hasLeftSpawn: false // Track if enemy has left the spawn house
+      hasLeftSpawn: false
     }];
   }
 
@@ -250,17 +259,15 @@
     const ch = map[row] && map[row][col];
     
     if (ch !== '#') {
-      // For enemies that have left spawn, check if they're trying to re-enter spawn house
       if (forEnemy && enemy && enemy.hasLeftSpawn) {
         if (row >= spawnHouse.minRow && row <= spawnHouse.maxRow && 
             col >= spawnHouse.minCol && col <= spawnHouse.maxCol) {
-          return false; // Prevent re-entry to spawn house
+          return false;
         }
       }
       return true;
     }
     
-    // Check if enemy can pass through open gates
     if (forEnemy && gatesOpen) {
       return gatePositions.some(g => g.row === row && g.col === col);
     }
@@ -292,9 +299,7 @@
     const px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
     const py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
 
-    // Handle input when near alignment (more forgiving)
     if (isNearAlignment(player) && inputBuf) {
-      // Calculate where the player would be if they were snapped to grid
       const snapX = Math.round(player.x / TILE_SIZE) * TILE_SIZE;
       const snapY = Math.round(player.y / TILE_SIZE) * TILE_SIZE;
       
@@ -302,7 +307,6 @@
       const newY = snapY + inputBuf.y * TILE_SIZE;
       
       if (canMove(newX, newY)) {
-        // Snap to grid and change direction
         player.x = snapX;
         player.y = snapY;
         player.dirX = inputBuf.x;
@@ -312,32 +316,26 @@
       inputBuf = null;
     }
 
-    // Try to move in current direction
     const newX = player.x + player.dirX * player.speed;
     const newY = player.y + player.dirY * player.speed;
 
     let canMoveX = canMove(newX, player.y);
     let canMoveY = canMove(player.x, newY);
 
-    // Move in X direction if possible
     if (canMoveX) {
       player.x = newX;
     } else {
-      // Stop X movement and snap to grid
       player.dirX = 0;
       snapToGrid(player);
     }
 
-    // Move in Y direction if possible
     if (canMoveY) {
       player.y = newY;
     } else {
-      // Stop Y movement and snap to grid
       player.dirY = 0;
       snapToGrid(player);
     }
 
-    // Collect items
     yarns = yarns.filter(yarn => {
       if (yarn.x === px && yarn.y === py) {
         score++;
@@ -359,7 +357,6 @@
       return true;
     });
 
-    // Handle invincibility
     if (player.invincible > 0) {
       player.invincible--;
       if (player.invincible === 0) {
@@ -386,7 +383,6 @@
     enemies.forEach(enemy => {
       if (!gatesOpen) return;
 
-      // Check if enemy has left the spawn house
       const ex = Math.floor((enemy.x + TILE_SIZE / 2) / TILE_SIZE);
       const ey = Math.floor((enemy.y + TILE_SIZE / 2) / TILE_SIZE);
       if (!enemy.hasLeftSpawn && 
@@ -395,21 +391,16 @@
         enemy.hasLeftSpawn = true;
       }
 
-      // Only change direction when aligned to grid AND current direction is blocked OR no direction set
       if (isAligned(enemy) && (enemy.dirX === 0 && enemy.dirY === 0 || !canMove(enemy.x + enemy.dirX * TILE_SIZE, enemy.y + enemy.dirY * TILE_SIZE, true, enemy))) {
         
-        // Get all possible directions (excluding turning around)
         const allDirs = [
           { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }
         ];
         
-        // Filter out the opposite direction (turning around) and blocked directions
         const possibleDirs = allDirs.filter(dir => {
-          // Don't allow turning around (opposite direction)
           if (enemy.dirX !== 0 && dir.x === -enemy.dirX) return false;
           if (enemy.dirY !== 0 && dir.y === -enemy.dirY) return false;
           
-          // Check if direction is not blocked
           const testX = enemy.x + dir.x * TILE_SIZE;
           const testY = enemy.y + dir.y * TILE_SIZE;
           return canMove(testX, testY, true, enemy);
@@ -419,23 +410,20 @@
           let chosenDir;
           
           if (Math.random() < enemy.intelligence) {
-            // Smart movement: choose direction closest to player
             const dx = player.x - enemy.x;
             const dy = player.y - enemy.y;
             
             chosenDir = possibleDirs.reduce((best, dir) => {
-              const score = dir.x * dx + dir.y * dy; // Dot product for direction preference
+              const score = dir.x * dx + dir.y * dy;
               return score > best.score ? { dir, score } : best;
             }, { score: -Infinity }).dir;
           } else {
-            // Random movement from available directions
             chosenDir = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
           }
           
           enemy.dirX = chosenDir.x;
           enemy.dirY = chosenDir.y;
         } else if (enemy.dirX === 0 && enemy.dirY === 0) {
-          // If no direction is possible and we're stopped, pick any direction (initial movement)
           const anyDir = allDirs.find(dir => canMove(enemy.x + dir.x * TILE_SIZE, enemy.y + dir.y * TILE_SIZE, true, enemy));
           if (anyDir) {
             enemy.dirX = anyDir.x;
@@ -444,7 +432,6 @@
         }
       }
 
-      // Move enemy
       const newX = enemy.x + enemy.dirX * enemy.speed;
       const newY = enemy.y + enemy.dirY * enemy.speed;
 
@@ -452,19 +439,16 @@
         enemy.x = newX;
         enemy.y = newY;
       } else {
-        // Snap to grid when hitting wall
         snapToGrid(enemy);
-        // Don't change direction here - let the next aligned check handle it
       }
 
-      // Check collision with player
       if (ex === px && ey === py) {
         if (player.invincible > 0) {
           enemy.x = spawnPoint.col * TILE_SIZE;
           enemy.y = spawnPoint.row * TILE_SIZE;
           enemy.dirX = 0;
           enemy.dirY = 0;
-          enemy.hasLeftSpawn = false; // Reset spawn status when teleported back
+          enemy.hasLeftSpawn = false;
           score += 10;
           playSound('meow');
         } else {
@@ -543,16 +527,13 @@
   }
 
   function drawMap() {
-    // Draw background
     ctx.fillStyle = '#fff8dc';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Draw walls
     ctx.fillStyle = '#d9d4b0';
     for (let r = 0; r < map.length; r++) {
       for (let c = 0; c < map[r].length; c++) {
         if (map[r][c] === '#') {
-          // Check if this is a gate
           const isGate = gatesOpen && gatePositions.some(g => g.row === r && g.col === c);
           if (isGate) {
             ctx.fillStyle = '#a0d8a0';
@@ -574,23 +555,19 @@
       case GAME_STATE.PAUSED:
         drawMap();
         
-        // Draw yarns
         yarns.forEach(yarn => drawImage('yarn_blue', yarn.x * TILE_SIZE + 8, yarn.y * TILE_SIZE + 8, 16, 16));
         specialYarns.forEach(yarn => drawImage('yarn_gold', yarn.x * TILE_SIZE + 8, yarn.y * TILE_SIZE + 8, 16, 16));
         
-        // Draw player with invincibility effect
         if (player.invincible > 0) {
           ctx.fillStyle = 'rgba(255,255,0,0.3)';
           ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
         }
         drawImage(`nugget_${player.direction}`, player.x, player.y, TILE_SIZE, TILE_SIZE);
         
-        // Draw enemies
         if (gatesOpen) {
           enemies.forEach(enemy => drawImage('cat_enemy', enemy.x, enemy.y, TILE_SIZE, TILE_SIZE));
         }
         
-        // Draw UI
         ctx.fillStyle = '#000';
         ctx.font = 'bold 18px Arial';
         ctx.strokeStyle = '#fff';
@@ -668,20 +645,20 @@
     }
   });
 
-  // === Touch Controls ===
+  // === Touch Controls (Fixed for Mobile) ===
   let touchStartX = 0, touchStartY = 0;
 
-  // Prevent default touch behaviors
-  document.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-  document.addEventListener('touchend', e => e.preventDefault(), { passive: false });
-
+  // Only prevent default touch behaviors on the canvas, not the whole document
   canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     if (e.touches.length === 1) {
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
     }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
   }, { passive: false });
 
   canvas.addEventListener('touchend', e => {
@@ -719,6 +696,12 @@
     resetGame();
     playSound('start');
   };
+
+  // Add touch event handler for start button to ensure mobile compatibility
+  startButton.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    startButton.click();
+  });
 
   gameLoop();
 </script>
