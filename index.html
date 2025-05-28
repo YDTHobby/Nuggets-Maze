@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Nugget's Yarn Maze</title>
   <style>
     body {
@@ -19,17 +20,30 @@
       height: 100%;
       touch-action: none;
     }
+    
+    #gameWrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+    
     canvas {
       display: block;
-      margin: 20px auto;
       background-color: #fff8dc;
       border: 2px solid #333;
       box-shadow: 0 4px 8px rgba(0,0,0,0.2);
       touch-action: none;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
     }
+    
     #gameContainer {
       position: relative;
     }
+    
     #startButton, #pauseOverlay {
       position: absolute;
       top: 50%;
@@ -48,15 +62,18 @@
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
+    
     #startButton:active, #startButton:hover {
       background-color: #f7b3c2;
       transform: translate(-50%, -50%) scale(0.95);
     }
+    
     #pauseOverlay {
       background-color: rgba(249, 197, 209, 0.95);
       padding: 30px;
       display: none;
     }
+    
     #instructions {
       margin-top: 20px;
       padding: 20px;
@@ -66,12 +83,43 @@
       max-width: 512px;
       text-align: center;
     }
+#leaderboard {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #333;
+  color: #0f0;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  min-width: 250px;
+}
+
+#leaderboard h3 {
+  margin: 0 0 10px 0;
+  text-align: center;
+  color: #ff0;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+.score-entry {
+  display: flex;
+  justify-content: space-between;
+  margin: 5px 0;
+  padding: 2px 5px;
+}
+
+.score-entry:nth-child(2) { color: #ff0; }
+.score-entry:nth-child(3) { color: #fff; }
+.score-entry:nth-child(4) { color: #fa0; }
+    
     .controls {
       display: flex;
       justify-content: space-around;
       margin: 10px 0;
       flex-wrap: wrap;
     }
+    
     .control {
       background-color: #f0f0f0;
       padding: 5px 10px;
@@ -79,631 +127,1458 @@
       margin: 2px;
       font-size: 14px;
     }
+    
+    #scoreDisplay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    
+    .virtual-dpad {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: grid;
+      grid-template-columns: repeat(3, 60px);
+      grid-template-rows: repeat(3, 60px);
+      gap: 5px;
+      opacity: 0.6;
+    }
+    
+    .virtual-dpad button {
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 10px;
+      font-size: 24px;
+      font-weight: bold;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    
+    .virtual-dpad button:active {
+      background-color: rgba(0, 0, 0, 0.8);
+      transform: scale(0.95);
+    }
+    
+    .virtual-dpad button[data-dir="up"] { grid-column: 2; grid-row: 1; }
+    .virtual-dpad button[data-dir="left"] { grid-column: 1; grid-row: 2; }
+    .virtual-dpad button[data-dir="right"] { grid-column: 3; grid-row: 2; }
+    .virtual-dpad button[data-dir="down"] { grid-column: 2; grid-row: 3; }
+    
+    @media (max-width: 768px) {
+      #instructions {
+        margin-top: 10px;
+        padding: 15px;
+        font-size: 14px;
+      }
+      
+      .virtual-dpad {
+        bottom: 10px;
+        right: 10px;
+      }
+    }
   </style>
 </head>
 <body>
-  <div id="gameContainer">
-    <button id="startButton">Start Game</button>
-    <div id="pauseOverlay">
-      <h2>Game Paused</h2>
-      <p>Press SPACE or ESC to resume</p>
+  <div id="gameWrapper">
+    <div id="gameContainer">
+      <button id="startButton">Start Game</button>
+      <div id="pauseOverlay">
+        <h2>Game Paused</h2>
+        <p>Press SPACE or ESC to resume</p>
+      </div>
+      <canvas id="gameCanvas" width="512" height="512"></canvas>
+      <div id="scoreDisplay" style="display: none;">
+        <div>Score: <span id="scoreValue">0</span></div>
+        <div>Level: <span id="levelValue">1</span></div>
+      </div>
     </div>
-    <canvas id="gameCanvas" width="512" height="512"></canvas>
-  </div>
-
-  <div id="instructions">
-    <h3>How to Play</h3>
-    <p>Help Nugget collect all the yarn while avoiding the cat!</p>
-    <div class="controls">
-      <span class="control">Arrow Keys: Move</span>
-      <span class="control">Touch/Swipe: Move</span>
-      <span class="control">Space/ESC: Pause</span>
+    
+    <div id="instructions">
+      <h3>How to Play</h3>
+      <p>Help Nugget collect all the yarn while avoiding the cat!</p>
+      <div class="controls">
+        <span class="control">Arrow Keys: Move</span>
+        <span class="control">Touch/Swipe: Move</span>
+        <span class="control">Space/ESC: Pause</span>
+      </div>
+      <p>🧶 Blue yarn = 1 point | ✨ Gold yarn = 5 points + invincibility!</p>
+      <p><em>Pro tip: Press any direction early - Nugget will turn at the next intersection!</em></p>
     </div>
-    <p>🥶 Blue yarn = 1 point | ✨ Gold yarn = 5 points + invincibility!</p>
+    <div id="leaderboard">
+      <h3>HIGH SCORES</h3>
+      <div id="scoreList"></div>
+    </div>
   </div>
-
 <script>
-  // === Constants ===
-  const TILE_SIZE = 32;
-  const PLAYER_SPEED = 1.536;
-  const ENEMY_SPEED = 1.536;
-  const INVINCIBLE_DURATION = 360;
-  const ENEMY_SPAWN_DELAY = 480;
-  const WIN_ANIMATION_DURATION = 1000;
-  const LEVEL_TRANSITION_DELAY = 3000;
-  const EARLY_INPUT_THRESHOLD = 8;
+// ===== PART 1: CORE SYSTEMS AND CONFIGURATION =====
 
-  const GAME_STATE = {
-    MENU: 0,
-    PLAYING: 1,
-    PAUSED: 2,
-    WON: 3,
-    GAME_OVER: 4,
-    LEVEL_TRANSITION: 5
-  };
+// === Configuration ===
+const CONFIG = {
+  GAME: {
+    TILE_SIZE: 32,
+    PLAYER_SPEED: 1.536,
+    ENEMY_SPEED: 1.536,
+    ALIGNMENT_THRESHOLD: 2,
+    INPUT_BUFFER_TIMEOUT: 3000,
+    GATE_POSITIONS: [
+      { row: 6, col: 4 }, { row: 6, col: 5 }, { row: 6, col: 6 }, { row: 6, col: 7 },
+      { row: 6, col: 8 }, { row: 6, col: 9 }, { row: 6, col: 10 }, { row: 6, col: 11 }
+    ],
+    SPAWN_POINT: { row: 7, col: 7 },
+    SPAWN_HOUSE: { minRow: 6, maxRow: 8, minCol: 4, maxCol: 11 }
+  },
+  SCORING: {
+    YARN: 1,
+    SPECIAL_YARN: 5,
+    ENEMY_EAT: 10,
+    LEVEL_COMPLETE: (level) => 100 * level
+  },
+  TIMING: {
+    INVINCIBLE_DURATION: 360,
+    ENEMY_SPAWN_DELAY: 480,
+    WIN_ANIMATION_DURATION: 1000,
+    LEVEL_TRANSITION_DELAY: 3000
+  },
+  LEVELS: [
+    { enemies: 1, enemySpeed: 1.0, intelligence: 0.3 },
+    { enemies: 1, enemySpeed: 1.2, intelligence: 0.4 },
+    { enemies: 2, enemySpeed: 1.4, intelligence: 0.5 },
+    { enemies: 2, enemySpeed: 1.6, intelligence: 0.6 },
+    { enemies: 3, enemySpeed: 1.8, intelligence: 0.7 },
+    { enemies: 3, enemySpeed: 2.0, intelligence: 0.8 },
+    { enemies: 4, enemySpeed: 2.2, intelligence: 0.9 }
+  ]
+};
 
-  // === Game Elements ===
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
-  const startButton = document.getElementById('startButton');
-  const pauseOverlay = document.getElementById('pauseOverlay');
+// === Game State Enum ===
+const GAME_STATE = {
+  MENU: 0,
+  PLAYING: 1,
+  PAUSED: 2,
+  WON: 3,
+  GAME_OVER: 4,
+  LEVEL_TRANSITION: 5
+};
 
-  // Pre-calculate gate positions and spawn point
-  const gatePositions = [];
-  for (let c = 4; c <= 11; c++) gatePositions.push({ row: 6, col: c });
-  const spawnPoint = { row: 7, col: 7 };
+// === Map Layout ===
+const MAP_LAYOUT = [
+  '################',
+  '#......##......#',
+  '#.####.##.####.#',
+  '#..............#',
+  '#.####.##.####.#',
+  '#..............#',
+  '###.########.###',
+  '###.#......#.###',
+  '###.########.###',
+  '#..............#',
+  '#.####.##.####.#',
+  '#......##......#',
+  '#.####.##.####.#',
+  '#o............o#',
+  '################'
+];
 
-  // Define spawn house area (cat cannot return here once it leaves)
-  const spawnHouse = {
-    minRow: 6,
-    maxRow: 8,
-    minCol: 4,
-    maxCol: 11
-  };
+// === Sound Manager ===
+class SoundManager {
+  constructor() {
+    this.sounds = {};
+    this.volume = 1.0;
+    this.muted = false;
+    this.initialized = false;
+  }
 
-  // === Game State ===
-  let currentState = GAME_STATE.MENU;
-  let player, enemies = [], yarns = [], specialYarns = [];
-  let score = 0, level = 1, winAnim = 0, inputBuf = null, transTimer = 0;
-  let gatesOpen = false, frameCounter = 0;
+  async initialize() {
+    if (this.initialized) return;
+    
+    const soundList = [
+      { name: 'yarn', src: 'yarn_collect.mp3', loop: false },
+      { name: 'special', src: 'powerup.mp3', loop: false },
+      { name: 'meow', src: 'meow.mp3', loop: false },
+      { name: 'invincible', src: 'invincible_loop.mp3', loop: true },
+      { name: 'start', src: 'start_game.mp3', loop: false },
+      { name: 'gameOver', src: 'game_over.mp3', loop: false },
+      { name: 'gameWon', src: 'game_won.mp3', loop: false },
+      { name: 'bgMusic', src: 'bg_music.mp3', loop: true }
+    ];
 
-  // === Map Layout ===
-  const map = [
-    '################',
-    '#......##......#',
-    '#.####.##.####.#',
-    '#..............#',
-    '#.####.##.####.#',
-    '#..............#',
-    '###.########.###',
-    '###.#......#.###',
-    '###.########.###',
-    '#..............#',
-    '#.####.##.####.#',
-    '#......##......#',
-    '#.####.##.####.#',
-    '#o............o#',
-    '################'
-  ];
+    for (const { name, src, loop } of soundList) {
+      try {
+        const audio = new Audio(src);
+        audio.loop = loop;
+        audio.volume = this.volume;
+        this.sounds[name] = audio;
+      } catch (e) {
+        console.warn(`Failed to load sound: ${name}`);
+      }
+    }
+    
+    this.initialized = true;
+  }
 
-  // === Asset Loading (Simplified) ===
-  const images = {};
-  const fallbackColors = {
-    'nugget_up': '#ff69b4', 'nugget_down': '#ff69b4', 'nugget_left': '#ff69b4', 'nugget_right': '#ff69b4',
-    'nugget_cheer1': '#ff69b4', 'nugget_cheer2': '#ff69b4', 'nugget_cheer3': '#ff69b4',
-    'yarn_blue': '#4169e1', 'yarn_gold': '#ffd700', 'cat_enemy': '#8b4513'
-  };
+  play(name, options = {}) {
+    if (this.muted || !this.sounds[name]) return;
+    
+    const sound = this.sounds[name];
+    sound.currentTime = 0;
+    sound.volume = options.volume || this.volume;
+    sound.play().catch(() => {});
+  }
 
-  function loadImages() {
-    Object.keys(fallbackColors).forEach(key => {
-      const img = new Image();
-      img.src = `${key}.png`;
-      img.onerror = () => img.fallbackColor = fallbackColors[key];
-      images[key] = img;
+  stop(name) {
+    if (!this.sounds[name]) return;
+    this.sounds[name].pause();
+    this.sounds[name].currentTime = 0;
+  }
+
+  pause(name) {
+    if (!this.sounds[name]) return;
+    this.sounds[name].pause();
+  }
+
+  setVolume(volume) {
+    this.volume = Math.max(0, Math.min(1, volume));
+    Object.values(this.sounds).forEach(sound => {
+      sound.volume = this.volume;
     });
   }
 
-  // === Audio (Simplified) ===
-  const sounds = {};
-  function createAudio(name, src, loop = false) {
-    const audio = new Audio(src);
-    audio.loop = loop;
-    audio.addEventListener('error', () => {});
-    sounds[name] = audio;
+  toggleMute() {
+    this.muted = !this.muted;
+    if (this.muted) {
+      Object.values(this.sounds).forEach(sound => sound.pause());
+    }
   }
+}
 
-  function initAudio() {
-    createAudio('yarn', 'yarn_collect.mp3');
-    createAudio('special', 'powerup.mp3');
-    createAudio('meow', 'meow.mp3');
-    createAudio('invincible', 'invincible_loop.mp3', true);
-    createAudio('start', 'start_game.mp3');
-    createAudio('gameOver', 'game_over.mp3');
-    createAudio('gameWon', 'game_won.mp3');
-    createAudio('bgMusic', 'bg_music.mp3', true);
-  }
-
-  function playSound(name) {
-    try {
-      const audio = sounds[name];
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-        audio.play();
-      }
-    } catch {}
-  }
-
-  // === Initialize Game Objects ===
-  function initPlayer() {
-    player = {
-      x: TILE_SIZE,
-      y: TILE_SIZE * 3,
-      dirX: 1,
-      dirY: 0,
-      direction: 'right',
-      speed: PLAYER_SPEED,
-      invincible: 0
+// === Asset Manager ===
+class AssetManager {
+  constructor() {
+    this.images = {};
+    this.fallbackColors = {
+      'nugget_up': '#ff69b4',
+      'nugget_down': '#ff69b4',
+      'nugget_left': '#ff69b4',
+      'nugget_right': '#ff69b4',
+      'nugget_cheer1': '#ff69b4',
+      'nugget_cheer2': '#ff69b4',
+      'nugget_cheer3': '#ff69b4',
+      'yarn_blue': '#4169e1',
+      'yarn_gold': '#ffd700',
+      'cat_enemy': '#8b4513'
     };
+    this.loaded = false;
   }
 
-  function initYarns() {
-    yarns = [];
-    specialYarns = [];
-    map.forEach((row, r) => {
-      row.split('').forEach((ch, c) => {
-        if (ch === '.') yarns.push({ x: c, y: r });
-        if (ch === 'o') specialYarns.push({ x: c, y: r });
+  async loadImages() {
+    const imagePromises = Object.keys(this.fallbackColors).map(key => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.src = `${key}.png`;
+        img.onload = () => {
+          this.images[key] = img;
+          resolve();
+        };
+        img.onerror = () => {
+          this.images[key] = { fallbackColor: this.fallbackColors[key] };
+          resolve();
+        };
       });
     });
-    // Remove yarns from spawn area
-    yarns = yarns.filter(d => !(d.y === spawnPoint.row && d.x >= spawnPoint.col - 2 && d.x <= spawnPoint.col + 3));
+
+    await Promise.all(imagePromises);
+    this.loaded = true;
   }
 
-  function spawnEnemies() {
-    enemies = [{
-      x: spawnPoint.col * TILE_SIZE,
-      y: spawnPoint.row * TILE_SIZE,
-      speed: ENEMY_SPEED,
-      dirX: 0,
-      dirY: 0,
-      intelligence: Math.min(0.3 + level * 0.1, 0.9),
-      hasLeftSpawn: false
-    }];
+  drawImage(ctx, imgName, x, y, w, h) {
+    const img = this.images[imgName];
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, x, y, w, h);
+    } else {
+      ctx.fillStyle = img?.fallbackColor || this.fallbackColors[imgName] || '#ff69b4';
+      ctx.fillRect(x, y, w, h);
+    }
+  }
+}
+
+// === Particle System ===
+class ParticleSystem {
+  constructor() {
+    this.particles = [];
   }
 
-  // === Movement Helper ===
-  function canMove(x, y, forEnemy = false, enemy = null) {
-    const col = Math.floor((x + TILE_SIZE / 2) / TILE_SIZE);
-    const row = Math.floor((y + TILE_SIZE / 2) / TILE_SIZE);
+  emit(x, y, color, count = 10, speed = 4) {
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count;
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed * (0.5 + Math.random() * 0.5),
+        vy: Math.sin(angle) * speed * (0.5 + Math.random() * 0.5),
+        life: 30,
+        maxLife: 30,
+        color,
+        size: 3 + Math.random() * 2
+      });
+    }
+  }
+
+  update() {
+    this.particles = this.particles.filter(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.95;
+      p.vy *= 0.95;
+      p.life--;
+      return p.life > 0;
+    });
+  }
+
+  render(ctx) {
+    this.particles.forEach(p => {
+      ctx.save();
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = (p.life / p.maxLife) * 0.8;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * (p.life / p.maxLife), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+}
+
+class HighScoreManager {
+  constructor() {
+    this.scores = this.load();
+  }
+
+  load() {
+    try {
+      const stored = localStorage.getItem('nuggetHighScores');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  save() {
+    try {
+      localStorage.setItem('nuggetHighScores', JSON.stringify(this.scores));
+    } catch {
+      console.warn('Failed to save high scores');
+    }
+  }
+
+  add(name, score, level) {
+    const entry = {
+      name: name.toUpperCase().substring(0, 3),
+      score,
+      level,
+      date: Date.now()
+    };
+    
+    this.scores.push(entry);
+    this.scores.sort((a, b) => b.score - a.score);
+    this.scores = this.scores.slice(0, 10);
+    this.save();
+    
+    return this.scores.findIndex(s => s === entry) + 1;
+  }
+
+  isHighScore(score) {
+    if (this.scores.length < 10) return true;
+    return score > this.scores[this.scores.length - 1].score;
+  }
+
+  getTopScores(count = 10) {
+    return this.scores.slice(0, count);
+  }
+}
+// === Canvas Manager ===
+class CanvasManager {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;
+    
+    // Create offscreen canvas for static map
+    this.mapCanvas = document.createElement('canvas');
+    this.mapCanvas.width = canvas.width;
+    this.mapCanvas.height = canvas.height;
+    this.mapCtx = this.mapCanvas.getContext('2d');
+    this.mapCtx.imageSmoothingEnabled = false;
+    
+    this.needsMapRedraw = true;
+    this.setupResponsiveScaling();
+  }
+
+  setupResponsiveScaling() {
+    const resizeCanvas = () => {
+      const container = this.canvas.parentElement;
+      const maxWidth = Math.min(window.innerWidth * 0.9, 512);
+      const maxHeight = Math.min(window.innerHeight * 0.7, 512);
+      const scale = Math.min(maxWidth / 512, maxHeight / 512, 1);
+      
+      this.canvas.style.width = `${512 * scale}px`;
+      this.canvas.style.height = `${512 * scale}px`;
+    };
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+  }
+
+  drawMap(map, gatesOpen = false) {
+    if (!this.needsMapRedraw) return;
+    
+    const ctx = this.mapCtx;
+    const TILE_SIZE = CONFIG.GAME.TILE_SIZE;
+    
+    // Clear background
+    ctx.fillStyle = '#fff8dc';
+    ctx.fillRect(0, 0, this.mapCanvas.width, this.mapCanvas.height);
+    
+    // Draw walls
+    ctx.fillStyle = '#d9d4b0';
+    for (let r = 0; r < map.length; r++) {
+      for (let c = 0; c < map[r].length; c++) {
+        if (map[r][c] === '#') {
+          const isGate = CONFIG.GAME.GATE_POSITIONS.some(g => g.row === r && g.col === c);
+          if (isGate && gatesOpen) {
+            ctx.fillStyle = '#a0d8a0';
+            ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            ctx.fillStyle = '#d9d4b0';
+          } else if (!isGate) {
+            ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+          }
+        }
+      }
+    }
+    
+    this.needsMapRedraw = false;
+  }
+
+  renderMapBuffer() {
+    this.ctx.drawImage(this.mapCanvas, 0, 0);
+  }
+
+  clear() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  setNeedsMapRedraw() {
+    this.needsMapRedraw = true;
+  }
+}
+
+// === Initialize core systems ===
+const canvas = document.getElementById('gameCanvas');
+const canvasManager = new CanvasManager(canvas);
+const soundManager = new SoundManager();
+const assetManager = new AssetManager();
+const particleSystem = new ParticleSystem();
+const highScoreManager = new HighScoreManager();
+
+// Initialize on page load
+window.addEventListener('load', async () => {
+  await assetManager.loadImages();
+  await soundManager.initialize();
+});
+
+// END OF PART 1
+// ===== PART 2: ENTITIES AND GAME LOGIC =====
+// Add this code inside the <script> tag after Part 1
+
+// === Base Entity Class ===
+class Entity {
+  constructor(x, y, speed) {
+    this.x = x;
+    this.y = y;
+    this.speed = speed;
+    this.dirX = 0;
+    this.dirY = 0;
+    this.gridX = 0;
+    this.gridY = 0;
+    this.lastX = x;
+    this.lastY = y;
+    this.updateGridPosition();
+  }
+
+  updateGridPosition() {
+    const halfTile = CONFIG.GAME.TILE_SIZE / 2;
+    this.gridX = Math.floor((this.x + halfTile) / CONFIG.GAME.TILE_SIZE);
+    this.gridY = Math.floor((this.y + halfTile) / CONFIG.GAME.TILE_SIZE);
+  }
+
+  isAligned() {
+    const gridX = Math.round(this.x / CONFIG.GAME.TILE_SIZE) * CONFIG.GAME.TILE_SIZE;
+    const gridY = Math.round(this.y / CONFIG.GAME.TILE_SIZE) * CONFIG.GAME.TILE_SIZE;
+    return Math.abs(this.x - gridX) < CONFIG.GAME.ALIGNMENT_THRESHOLD && 
+           Math.abs(this.y - gridY) < CONFIG.GAME.ALIGNMENT_THRESHOLD;
+  }
+
+  snapToGrid() {
+    this.x = Math.round(this.x / CONFIG.GAME.TILE_SIZE) * CONFIG.GAME.TILE_SIZE;
+    this.y = Math.round(this.y / CONFIG.GAME.TILE_SIZE) * CONFIG.GAME.TILE_SIZE;
+  }
+
+  move(dx, dy) {
+    this.x += dx * this.speed;
+    this.y += dy * this.speed;
+    
+    // Only update grid position if we've moved significantly
+    if (Math.abs(this.x - this.lastX) >= CONFIG.GAME.TILE_SIZE / 2 || 
+        Math.abs(this.y - this.lastY) >= CONFIG.GAME.TILE_SIZE / 2) {
+      this.updateGridPosition();
+      this.lastX = this.x;
+      this.lastY = this.y;
+    }
+  }
+}
+
+// === Player Class ===
+class Player extends Entity {
+  constructor() {
+    super(CONFIG.GAME.TILE_SIZE, CONFIG.GAME.TILE_SIZE * 3, CONFIG.GAME.PLAYER_SPEED);
+    this.dirX = 1;
+    this.dirY = 0;
+    this.direction = 'right';
+    this.invincible = 0;
+    this.inputBuffer = null;
+    this.inputBufferTimestamp = 0;
+    this.powerUps = [];
+  }
+
+  setInputBuffer(direction) {
+    this.inputBuffer = direction;
+    this.inputBufferTimestamp = Date.now();
+  }
+
+  clearOldInputBuffer() {
+    const currentTime = Date.now();
+    if (this.inputBuffer && (currentTime - this.inputBufferTimestamp) > CONFIG.GAME.INPUT_BUFFER_TIMEOUT) {
+      this.inputBuffer = null;
+    }
+  }
+
+  canMove(x, y, map) {
+    const col = Math.floor((x + CONFIG.GAME.TILE_SIZE / 2) / CONFIG.GAME.TILE_SIZE);
+    const row = Math.floor((y + CONFIG.GAME.TILE_SIZE / 2) / CONFIG.GAME.TILE_SIZE);
+    return map[row] && map[row][col] !== '#';
+  }
+
+  update(map) {
+    this.clearOldInputBuffer();
+
+    // Handle buffered input at intersections
+    if (this.isAligned() && this.inputBuffer) {
+      const snapX = Math.round(this.x / CONFIG.GAME.TILE_SIZE) * CONFIG.GAME.TILE_SIZE;
+      const snapY = Math.round(this.y / CONFIG.GAME.TILE_SIZE) * CONFIG.GAME.TILE_SIZE;
+      
+      const newX = snapX + this.inputBuffer.x * CONFIG.GAME.TILE_SIZE;
+      const newY = snapY + this.inputBuffer.y * CONFIG.GAME.TILE_SIZE;
+      
+      const isDifferentDirection = this.inputBuffer.x !== this.dirX || this.inputBuffer.y !== this.dirY;
+      
+      if (this.canMove(newX, newY, map) && isDifferentDirection) {
+        this.x = snapX;
+        this.y = snapY;
+        
+        this.dirX = this.inputBuffer.x;
+        this.dirY = this.inputBuffer.y;
+        
+        if (this.inputBuffer.x > 0) this.direction = 'right';
+        else if (this.inputBuffer.x < 0) this.direction = 'left';
+        else if (this.inputBuffer.y < 0) this.direction = 'up';
+        else if (this.inputBuffer.y > 0) this.direction = 'down';
+        
+        this.inputBuffer = null;
+      } else if (!isDifferentDirection) {
+        this.inputBuffer = null;
+      }
+    }
+
+    // Continue movement
+    const newX = this.x + this.dirX * this.speed;
+    const newY = this.y + this.dirY * this.speed;
+
+    let moved = false;
+    if (this.canMove(newX, this.y, map)) {
+      this.x = newX;
+      moved = true;
+    } else {
+      this.dirX = 0;
+      this.snapToGrid();
+    }
+
+    if (this.canMove(this.x, newY, map)) {
+      this.y = newY;
+      moved = true;
+    } else {
+      this.dirY = 0;
+      this.snapToGrid();
+    }
+
+    if (moved) {
+      this.updateGridPosition();
+    }
+
+    // Update invincibility
+    if (this.invincible > 0) {
+      this.invincible--;
+    }
+
+    // Update power-ups
+    this.powerUps = this.powerUps.filter(powerUp => {
+      powerUp.duration--;
+      if (powerUp.duration <= 0 && powerUp.revert) {
+        powerUp.revert(this);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  makeInvincible() {
+    this.invincible = CONFIG.TIMING.INVINCIBLE_DURATION;
+  }
+}
+
+// === Enemy Class ===
+class Enemy extends Entity {
+  constructor(x, y, intelligence) {
+    super(x, y, CONFIG.GAME.ENEMY_SPEED);
+    this.intelligence = intelligence;
+    this.hasLeftSpawn = false;
+    this.behavior = 'CHASE';
+    this.frozen = false;
+  }
+
+  canMove(x, y, map, gatesOpen) {
+    const col = Math.floor((x + CONFIG.GAME.TILE_SIZE / 2) / CONFIG.GAME.TILE_SIZE);
+    const row = Math.floor((y + CONFIG.GAME.TILE_SIZE / 2) / CONFIG.GAME.TILE_SIZE);
     const ch = map[row] && map[row][col];
     
     if (ch !== '#') {
-      if (forEnemy && enemy && enemy.hasLeftSpawn) {
-        if (row >= spawnHouse.minRow && row <= spawnHouse.maxRow && 
-            col >= spawnHouse.minCol && col <= spawnHouse.maxCol) {
+      // Check if enemy is trying to re-enter spawn area
+      if (this.hasLeftSpawn) {
+        const spawn = CONFIG.GAME.SPAWN_HOUSE;
+        if (row >= spawn.minRow && row <= spawn.maxRow && 
+            col >= spawn.minCol && col <= spawn.maxCol) {
           return false;
         }
       }
       return true;
     }
     
-    if (forEnemy && gatesOpen) {
-      return gatePositions.some(g => g.row === row && g.col === col);
+    // Check if it's a gate
+    if (gatesOpen) {
+      return CONFIG.GAME.GATE_POSITIONS.some(g => g.row === row && g.col === col);
     }
     
     return false;
   }
 
-  function isAligned(entity) {
-    const gridX = Math.round(entity.x / TILE_SIZE) * TILE_SIZE;
-    const gridY = Math.round(entity.y / TILE_SIZE) * TILE_SIZE;
-    return Math.abs(entity.x - gridX) < 1 && Math.abs(entity.y - gridY) < 1;
-  }
-
-  function isNearAlignment(entity) {
-    const gridX = Math.round(entity.x / TILE_SIZE) * TILE_SIZE;
-    const gridY = Math.round(entity.y / TILE_SIZE) * TILE_SIZE;
-    return Math.abs(entity.x - gridX) < EARLY_INPUT_THRESHOLD && Math.abs(entity.y - gridY) < EARLY_INPUT_THRESHOLD;
-  }
-
-  function snapToGrid(entity) {
-    entity.x = Math.round(entity.x / TILE_SIZE) * TILE_SIZE;
-    entity.y = Math.round(entity.y / TILE_SIZE) * TILE_SIZE;
-  }
-
-  // === Update Player ===
-  function updatePlayer() {
-    if (currentState !== GAME_STATE.PLAYING) return;
-
-    const px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
-    const py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
-
-    if (isNearAlignment(player) && inputBuf) {
-      const snapX = Math.round(player.x / TILE_SIZE) * TILE_SIZE;
-      const snapY = Math.round(player.y / TILE_SIZE) * TILE_SIZE;
-      
-      const newX = snapX + inputBuf.x * TILE_SIZE;
-      const newY = snapY + inputBuf.y * TILE_SIZE;
-      
-      if (canMove(newX, newY)) {
-        player.x = snapX;
-        player.y = snapY;
-        player.dirX = inputBuf.x;
-        player.dirY = inputBuf.y;
-        player.direction = inputBuf.x > 0 ? 'right' : inputBuf.x < 0 ? 'left' : inputBuf.y < 0 ? 'up' : inputBuf.y > 0 ? 'down' : player.direction;
-      }
-      inputBuf = null;
-    }
-
-    const newX = player.x + player.dirX * player.speed;
-    const newY = player.y + player.dirY * player.speed;
-
-    let canMoveX = canMove(newX, player.y);
-    let canMoveY = canMove(player.x, newY);
-
-    if (canMoveX) {
-      player.x = newX;
-    } else {
-      player.dirX = 0;
-      snapToGrid(player);
-    }
-
-    if (canMoveY) {
-      player.y = newY;
-    } else {
-      player.dirY = 0;
-      snapToGrid(player);
-    }
-
-    yarns = yarns.filter(yarn => {
-      if (yarn.x === px && yarn.y === py) {
-        score++;
-        playSound('yarn');
-        return false;
-      }
-      return true;
-    });
-
-    specialYarns = specialYarns.filter(yarn => {
-      if (yarn.x === px && yarn.y === py) {
-        player.invincible = INVINCIBLE_DURATION;
-        score += 5;
-        playSound('special');
-        playSound('invincible');
-        sounds.bgMusic.pause();
-        return false;
-      }
-      return true;
-    });
-
-    if (player.invincible > 0) {
-      player.invincible--;
-      if (player.invincible === 0) {
-        sounds.invincible.pause();
-        if (currentState === GAME_STATE.PLAYING) {
-          playSound('bgMusic');
-        }
-      }
+  checkIfLeftSpawn() {
+    const spawn = CONFIG.GAME.SPAWN_HOUSE;
+    if (!this.hasLeftSpawn && 
+        (this.gridX < spawn.minCol || this.gridX > spawn.maxCol || 
+         this.gridY < spawn.minRow || this.gridY > spawn.maxRow)) {
+      this.hasLeftSpawn = true;
     }
   }
 
-  // === Update Enemies ===
-  function updateEnemies() {
-    if (currentState !== GAME_STATE.PLAYING) return;
+  chooseDirection(player, map, gatesOpen) {
+    if (this.frozen) return;
+
+    const directions = [
+      { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }
+    ];
     
-    frameCounter++;
-    if (!gatesOpen && frameCounter >= ENEMY_SPAWN_DELAY) {
-      gatesOpen = true;
-    }
-
-    const px = Math.floor((player.x + TILE_SIZE / 2) / TILE_SIZE);
-    const py = Math.floor((player.y + TILE_SIZE / 2) / TILE_SIZE);
-
-    enemies.forEach(enemy => {
-      if (!gatesOpen) return;
-
-      const ex = Math.floor((enemy.x + TILE_SIZE / 2) / TILE_SIZE);
-      const ey = Math.floor((enemy.y + TILE_SIZE / 2) / TILE_SIZE);
-      if (!enemy.hasLeftSpawn && 
-          (ex < spawnHouse.minCol || ex > spawnHouse.maxCol || 
-           ey < spawnHouse.minRow || ey > spawnHouse.maxRow)) {
-        enemy.hasLeftSpawn = true;
-      }
-
-      if (isAligned(enemy) && (enemy.dirX === 0 && enemy.dirY === 0 || !canMove(enemy.x + enemy.dirX * TILE_SIZE, enemy.y + enemy.dirY * TILE_SIZE, true, enemy))) {
-        
-        const allDirs = [
-          { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }
-        ];
-        
-        const possibleDirs = allDirs.filter(dir => {
-          if (enemy.dirX !== 0 && dir.x === -enemy.dirX) return false;
-          if (enemy.dirY !== 0 && dir.y === -enemy.dirY) return false;
-          
-          const testX = enemy.x + dir.x * TILE_SIZE;
-          const testY = enemy.y + dir.y * TILE_SIZE;
-          return canMove(testX, testY, true, enemy);
-        });
-
-        if (possibleDirs.length > 0) {
-          let chosenDir;
-          
-          if (Math.random() < enemy.intelligence) {
-            const dx = player.x - enemy.x;
-            const dy = player.y - enemy.y;
-            
-            chosenDir = possibleDirs.reduce((best, dir) => {
-              const score = dir.x * dx + dir.y * dy;
-              return score > best.score ? { dir, score } : best;
-            }, { score: -Infinity }).dir;
-          } else {
-            chosenDir = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
-          }
-          
-          enemy.dirX = chosenDir.x;
-          enemy.dirY = chosenDir.y;
-        } else if (enemy.dirX === 0 && enemy.dirY === 0) {
-          const anyDir = allDirs.find(dir => canMove(enemy.x + dir.x * TILE_SIZE, enemy.y + dir.y * TILE_SIZE, true, enemy));
-          if (anyDir) {
-            enemy.dirX = anyDir.x;
-            enemy.dirY = anyDir.y;
-          }
-        }
-      }
-
-      const newX = enemy.x + enemy.dirX * enemy.speed;
-      const newY = enemy.y + enemy.dirY * enemy.speed;
-
-      if (canMove(newX, newY, true, enemy)) {
-        enemy.x = newX;
-        enemy.y = newY;
-      } else {
-        snapToGrid(enemy);
-      }
-
-      if (ex === px && ey === py) {
-        if (player.invincible > 0) {
-          enemy.x = spawnPoint.col * TILE_SIZE;
-          enemy.y = spawnPoint.row * TILE_SIZE;
-          enemy.dirX = 0;
-          enemy.dirY = 0;
-          enemy.hasLeftSpawn = false;
-          score += 10;
-          playSound('meow');
-        } else {
-          currentState = GAME_STATE.GAME_OVER;
-          playSound('gameOver');
-          sounds.bgMusic.pause();
-          setTimeout(() => {
-            alert(`Game Over! Score: ${score}`);
-            currentState = GAME_STATE.MENU;
-            startButton.style.display = 'block';
-            startButton.innerText = 'Play Again';
-          }, 100);
-        }
-      }
+    // Filter out reverse direction and invalid moves
+    const possibleDirs = directions.filter(dir => {
+      if (this.dirX !== 0 && dir.x === -this.dirX) return false;
+      if (this.dirY !== 0 && dir.y === -this.dirY) return false;
+      
+      const testX = this.x + dir.x * CONFIG.GAME.TILE_SIZE;
+      const testY = this.y + dir.y * CONFIG.GAME.TILE_SIZE;
+      return this.canMove(testX, testY, map, gatesOpen);
     });
-  }
 
-  // === Game Logic ===
-  function resetGame() {
-    initPlayer();
-    score = 0;
-    level = 1;
-    inputBuf = null;
-    initYarns();
-    spawnEnemies();
-    gatesOpen = false;
-    frameCounter = 0;
-    currentState = GAME_STATE.PLAYING;
-    playSound('bgMusic');
-  }
-
-  function nextLevel() {
-    level++;
-    score += 100 * level;
-    initYarns();
-    spawnEnemies();
-    gatesOpen = false;
-    frameCounter = 0;
-    currentState = GAME_STATE.LEVEL_TRANSITION;
-    transTimer = LEVEL_TRANSITION_DELAY;
-  }
-
-  function updateGame() {
-    switch (currentState) {
-      case GAME_STATE.PLAYING:
-        updatePlayer();
-        updateEnemies();
-        if (yarns.length === 0 && specialYarns.length === 0) {
-          currentState = GAME_STATE.WON;
-          sounds.invincible.pause();
-          sounds.bgMusic.pause();
-          playSound('gameWon');
-          winAnim = 0;
-        }
-        break;
-      case GAME_STATE.WON:
-        winAnim++;
-        if (winAnim >= WIN_ANIMATION_DURATION) nextLevel();
-        break;
-      case GAME_STATE.LEVEL_TRANSITION:
-        transTimer--;
-        if (transTimer <= 0) currentState = GAME_STATE.PLAYING;
-        break;
+    if (possibleDirs.length === 0) {
+      // If stuck, allow reverse
+      const reverseDir = directions.find(dir => 
+        this.canMove(this.x + dir.x * CONFIG.GAME.TILE_SIZE, 
+                     this.y + dir.y * CONFIG.GAME.TILE_SIZE, map, gatesOpen)
+      );
+      if (reverseDir) {
+        this.dirX = reverseDir.x;
+        this.dirY = reverseDir.y;
+      }
+      return;
     }
-  }
 
-  // === Drawing (Optimized) ===
-  function drawImage(imgName, x, y, w, h) {
-    const img = images[imgName];
-    if (img && img.complete && img.naturalWidth > 0) {
-      ctx.drawImage(img, x, y, w, h);
+    let chosenDir;
+    
+    // Use intelligence to decide behavior
+    if (Math.random() < this.intelligence && player.invincible === 0) {
+      // Chase behavior
+      const dx = player.x - this.x;
+      const dy = player.y - this.y;
+      
+      chosenDir = possibleDirs.reduce((best, dir) => {
+        const score = dir.x * dx + dir.y * dy;
+        return score > best.score ? { dir, score } : best;
+      }, { score: -Infinity }).dir;
+    } else if (player.invincible > 0) {
+      // Flee behavior
+      const dx = player.x - this.x;
+      const dy = player.y - this.y;
+      
+      chosenDir = possibleDirs.reduce((best, dir) => {
+        const score = -(dir.x * dx + dir.y * dy); // Negative for fleeing
+        return score > best.score ? { dir, score } : best;
+      }, { score: -Infinity }).dir;
     } else {
-      ctx.fillStyle = fallbackColors[imgName] || '#ff69b4';
-      ctx.fillRect(x, y, w, h);
+      // Random behavior
+      chosenDir = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
+    }
+    
+    this.dirX = chosenDir.x;
+    this.dirY = chosenDir.y;
+  }
+
+  update(player, map, gatesOpen) {
+    if (!gatesOpen || this.frozen) return;
+
+    this.checkIfLeftSpawn();
+
+    // Choose new direction at intersections
+    if (this.isAligned() && (
+        this.dirX === 0 && this.dirY === 0 || 
+        !this.canMove(this.x + this.dirX * CONFIG.GAME.TILE_SIZE, 
+                      this.y + this.dirY * CONFIG.GAME.TILE_SIZE, map, gatesOpen))) {
+      this.chooseDirection(player, map, gatesOpen);
+    }
+
+    // Move
+    const newX = this.x + this.dirX * this.speed;
+    const newY = this.y + this.dirY * this.speed;
+
+    if (this.canMove(newX, newY, map, gatesOpen)) {
+      this.x = newX;
+      this.y = newY;
+      this.updateGridPosition();
+    } else {
+      this.snapToGrid();
+      this.dirX = 0;
+      this.dirY = 0;
     }
   }
 
-  function drawMap() {
-    ctx.fillStyle = '#fff8dc';
+  respawn() {
+    const spawn = CONFIG.GAME.SPAWN_POINT;
+    this.x = spawn.col * CONFIG.GAME.TILE_SIZE;
+    this.y = spawn.row * CONFIG.GAME.TILE_SIZE;
+    this.dirX = 0;
+    this.dirY = 0;
+    this.hasLeftSpawn = false;
+    this.updateGridPosition();
+  }
+}
+
+// === Collectible Classes ===
+class Yarn {
+  constructor(x, y, type = 'normal') {
+    this.x = x;
+    this.y = y;
+    this.type = type;
+    this.collected = false;
+  }
+
+  collect(player, game) {
+    if (this.collected) return;
+    
+    this.collected = true;
+    
+    if (this.type === 'special') {
+      game.score += CONFIG.SCORING.SPECIAL_YARN;
+      player.makeInvincible();
+      soundManager.play('special');
+      soundManager.play('invincible');
+      soundManager.pause('bgMusic');
+      particleSystem.emit(
+        this.x * CONFIG.GAME.TILE_SIZE + 16,
+        this.y * CONFIG.GAME.TILE_SIZE + 16,
+        '#ffd700',
+        20,
+        6
+      );
+    } else {
+      game.score += CONFIG.SCORING.YARN;
+      soundManager.play('yarn');
+      particleSystem.emit(
+        this.x * CONFIG.GAME.TILE_SIZE + 16,
+        this.y * CONFIG.GAME.TILE_SIZE + 16,
+        '#4169e1',
+        10,
+        4
+      );
+    }
+  }
+}
+
+// === Game State Machine ===
+class GameState {
+  constructor(game) {
+    this.game = game;
+  }
+  
+  enter() {}
+  exit() {}
+  update() {}
+  render() {}
+  handleInput(input) {}
+}
+
+class MenuState extends GameState {
+  enter() {
+    document.getElementById('startButton').style.display = 'block';
+    document.getElementById('scoreDisplay').style.display = 'none';
+    this.game.updateLeaderboard();
+  }
+  
+  exit() {
+    document.getElementById('startButton').style.display = 'none';
+  }
+}
+
+class PlayingState extends GameState {
+  enter() {
+    document.getElementById('scoreDisplay').style.display = 'block';
+    soundManager.play('bgMusic');
+  }
+  
+  update() {
+    this.game.updateGameLogic();
+  }
+  
+  render() {
+    this.game.renderGame();
+  }
+  
+  handleInput(input) {
+    this.game.player.setInputBuffer(input);
+  }
+}
+
+class PausedState extends GameState {
+  enter() {
+    document.getElementById('pauseOverlay').style.display = 'block';
+    soundManager.pause('bgMusic');
+  }
+  
+  exit() {
+    document.getElementById('pauseOverlay').style.display = 'none';
+    if (this.game.player.invincible === 0) {
+      soundManager.play('bgMusic');
+    }
+  }
+  
+  render() {
+    this.game.renderGame();
+  }
+}
+
+class GameOverState extends GameState {
+enter() {
+  soundManager.stop('bgMusic');
+  soundManager.stop('invincible');
+  soundManager.play('gameOver');
+  
+  const finalScore = this.game.score;
+  
+  setTimeout(() => {
+    if (highScoreManager.isHighScore(finalScore)) {
+      let name = prompt('NEW HIGH SCORE!\nEnter your initials (3 characters):') || 'AAA';
+      name = name.toUpperCase().substring(0, 3).padEnd(3, 'A');
+      const rank = highScoreManager.add(name, finalScore, this.game.level);
+      alert(`High Score #${rank}!\n${name} - ${finalScore}`);
+    } else {
+      alert(`Game Over!\nScore: ${finalScore}`);
+    }
+    
+    this.game.stateMachine.transition(GAME_STATE.MENU);
+    document.getElementById('startButton').innerText = 'Play Again';
+    }, 100);
+}
+}  // Add this closing brace for the class
+class WonState extends GameState {
+  constructor(game) {
+    super(game);
+    this.animationTime = 0;
+  }
+  
+  enter() {
+    this.animationTime = 0;
+    soundManager.stop('invincible');
+    soundManager.stop('bgMusic');
+    soundManager.play('gameWon');
+  }
+  
+  update() {
+    this.animationTime++;
+    if (this.animationTime >= 600) {
+      this.game.nextLevel();
+    }
+  }
+  
+  render() {
+    const ctx = canvasManager.ctx;
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    ctx.fillStyle = '#d9d4b0';
-    for (let r = 0; r < map.length; r++) {
-      for (let c = 0; c < map[r].length; c++) {
-        if (map[r][c] === '#') {
-          const isGate = gatesOpen && gatePositions.some(g => g.row === r && g.col === c);
-          if (isGate) {
-            ctx.fillStyle = '#a0d8a0';
-            ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-            ctx.fillStyle = '#d9d4b0';
-          } else {
-            ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    const cheerFrame = Math.floor(this.animationTime / 20) % 3;
+    const cheerImg = ['nugget_cheer1', 'nugget_cheer2', 'nugget_cheer3'][cheerFrame];
+    const size = canvas.width * 0.7;
+    const x = (canvas.width - size) / 2;
+    const y = (canvas.height - size) / 2;
+    
+    assetManager.drawImage(ctx, cheerImg, x, y, size, size);
+  }
+}
+
+class LevelTransitionState extends GameState {
+  constructor(game) {
+    super(game);
+    this.timer = 0;
+  }
+  
+  enter() {
+    this.timer = 180;
+  }
+  
+  update() {
+    this.timer--;
+    if (this.timer <= 0) {
+      this.game.stateMachine.transition(GAME_STATE.PLAYING);
+    }
+  }
+  
+  render() {
+    this.game.renderGame();
+    
+    const ctx = canvasManager.ctx;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Level ${this.game.level}`, canvas.width / 2, canvas.height / 2 - 20);
+    ctx.fillText('Get Ready!', canvas.width / 2, canvas.height / 2 + 20);
+    ctx.textAlign = 'left';
+  }
+}
+
+// === State Machine ===
+class StateMachine {
+  constructor(game) {
+    this.game = game;
+    this.states = {
+      [GAME_STATE.MENU]: new MenuState(game),
+      [GAME_STATE.PLAYING]: new PlayingState(game),
+      [GAME_STATE.PAUSED]: new PausedState(game),
+      [GAME_STATE.GAME_OVER]: new GameOverState(game),
+      [GAME_STATE.WON]: new WonState(game),
+      [GAME_STATE.LEVEL_TRANSITION]: new LevelTransitionState(game)
+    };
+    this.currentState = GAME_STATE.MENU;
+  }
+  
+  transition(newState) {
+    this.states[this.currentState].exit();
+    this.currentState = newState;
+    this.states[this.currentState].enter();
+  }
+  
+  update() {
+    this.states[this.currentState].update();
+  }
+  
+  render() {
+    this.states[this.currentState].render();
+  }
+  
+  handleInput(input) {
+    this.states[this.currentState].handleInput(input);
+  }
+}
+
+// END OF PART 2
+// ===== PART 3: GAME CLASS AND INPUT SYSTEM =====
+// Add this code inside the <script> tag after Part 2
+
+// === Main Game Class ===
+class Game {
+  constructor() {
+    this.player = null;
+    this.enemies = [];
+    this.yarns = [];
+    this.yarnMap = new Map(); // Spatial hash for faster collision detection
+    
+    this.score = 0;
+    this.level = 1;
+    this.gatesOpen = false;
+    this.frameCounter = 0;
+    
+    this.stateMachine = new StateMachine(this);
+    this.inputManager = new InputManager(this);
+    
+    this.init();
+  }
+  
+  init() {
+    this.stateMachine.transition(GAME_STATE.MENU);
+    this.setupEventListeners();
+    this.updateLeaderboard();  // Add this line
+  }
+
+  updateLeaderboard() {
+    const scoreList = document.getElementById('scoreList');
+    const topScores = highScoreManager.getTopScores(10);
+    
+    if (topScores.length === 0) {
+      scoreList.innerHTML = '<div class="score-entry">No scores yet!</div>';
+      return;
+    }
+    
+    scoreList.innerHTML = topScores.map((score, index) => 
+      `<div class="score-entry">
+        <span>${index + 1}. ${score.name}</span>
+        <span>${score.score.toString().padStart(6, '0')}</span>
+      </div>`
+    ).join('');
+  }
+  
+  setupEventListeners() {
+    const startButton = document.getElementById('startButton');
+    startButton.onclick = () => this.start();
+    startButton.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      this.start();
+    });
+  }
+  
+  start() {
+    this.resetGame();
+    this.stateMachine.transition(GAME_STATE.PLAYING);
+    soundManager.play('start');
+  }
+  
+  resetGame() {
+    this.score = 0;
+    this.level = 1;
+    this.gatesOpen = false;
+    this.frameCounter = 0;
+    
+    this.initPlayer();
+    this.initYarns();
+    this.spawnEnemies();
+    
+    canvasManager.setNeedsMapRedraw();
+  }
+  
+  initPlayer() {
+    this.player = new Player();
+  }
+  
+  initYarns() {
+    this.yarns = [];
+    this.yarnMap.clear();
+    
+    MAP_LAYOUT.forEach((row, r) => {
+      row.split('').forEach((ch, c) => {
+        if (ch === '.') {
+          // Don't place yarn in spawn area
+          const spawn = CONFIG.GAME.SPAWN_POINT;
+          if (!(r === spawn.row && c >= spawn.col - 2 && c <= spawn.col + 3)) {
+            const yarn = new Yarn(c, r, 'normal');
+            this.yarns.push(yarn);
+            this.yarnMap.set(`${c},${r}`, yarn);
           }
+        } else if (ch === 'o') {
+          const yarn = new Yarn(c, r, 'special');
+          this.yarns.push(yarn);
+          this.yarnMap.set(`${c},${r}`, yarn);
+        }
+      });
+    });
+  }
+  
+  spawnEnemies() {
+    this.enemies = [];
+    
+    const levelConfig = CONFIG.LEVELS[Math.min(this.level - 1, CONFIG.LEVELS.length - 1)];
+    const numEnemies = levelConfig.enemies || 1;
+    
+    for (let i = 0; i < numEnemies; i++) {
+      const spawn = CONFIG.GAME.SPAWN_POINT;
+      const enemy = new Enemy(
+        spawn.col * CONFIG.GAME.TILE_SIZE,
+        spawn.row * CONFIG.GAME.TILE_SIZE,
+        levelConfig.intelligence
+      );
+      enemy.speed = CONFIG.GAME.ENEMY_SPEED * (levelConfig.enemySpeed || 1);
+      this.enemies.push(enemy);
+    }
+  }
+  
+  updateGameLogic() {
+    this.frameCounter++;
+    
+    // Open gates after delay
+    if (!this.gatesOpen && this.frameCounter >= CONFIG.TIMING.ENEMY_SPAWN_DELAY) {
+      this.gatesOpen = true;
+      canvasManager.setNeedsMapRedraw();
+    }
+    
+    // Update player
+    this.player.update(MAP_LAYOUT);
+    
+    // Check yarn collection using spatial hash
+    const playerKey = `${this.player.gridX},${this.player.gridY}`;
+    const yarn = this.yarnMap.get(playerKey);
+    if (yarn && !yarn.collected) {
+      yarn.collect(this.player, this);
+      this.yarnMap.delete(playerKey);
+      
+      // Check for invincibility ending
+      if (this.player.invincible === 1) {
+        soundManager.stop('invincible');
+        if (this.stateMachine.currentState === GAME_STATE.PLAYING) {
+          soundManager.play('bgMusic');
         }
       }
     }
-  }
-
-  function render() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    switch (currentState) {
-      case GAME_STATE.PLAYING:
-      case GAME_STATE.PAUSED:
-        drawMap();
-        
-        yarns.forEach(yarn => drawImage('yarn_blue', yarn.x * TILE_SIZE + 8, yarn.y * TILE_SIZE + 8, 16, 16));
-        specialYarns.forEach(yarn => drawImage('yarn_gold', yarn.x * TILE_SIZE + 8, yarn.y * TILE_SIZE + 8, 16, 16));
-        
-        if (player.invincible > 0) {
-          ctx.fillStyle = 'rgba(255,255,0,0.3)';
-          ctx.fillRect(player.x, player.y, TILE_SIZE, TILE_SIZE);
+    // Update enemies
+    this.enemies.forEach(enemy => {
+      enemy.update(this.player, MAP_LAYOUT, this.gatesOpen);
+      
+      // Check collision with player
+      if (enemy.gridX === this.player.gridX && enemy.gridY === this.player.gridY) {
+        if (this.player.invincible > 0) {
+          // Eat enemy
+          this.score += CONFIG.SCORING.ENEMY_EAT;
+          enemy.respawn();
+          soundManager.play('meow');
+          
+          // Particle effect at enemy position
+          particleSystem.emit(enemy.x + 16, enemy.y + 16, '#ff4500', 15, 5);
+        } else {
+          // Game over
+          this.stateMachine.transition(GAME_STATE.GAME_OVER);
         }
-        drawImage(`nugget_${player.direction}`, player.x, player.y, TILE_SIZE, TILE_SIZE);
-        
-        if (gatesOpen) {
-          enemies.forEach(enemy => drawImage('cat_enemy', enemy.x, enemy.y, TILE_SIZE, TILE_SIZE));
-        }
-        
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 18px Arial';
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
-        
-        ctx.strokeText(`Score: ${score}`, 10, 25);
-        ctx.fillText(`Score: ${score}`, 10, 25);
-        ctx.strokeText(`Level: ${level}`, 10, 50);
-        ctx.fillText(`Level: ${level}`, 10, 50);
-        
-        if (player.invincible > 0) {
-          const invText = `Invincible: ${Math.ceil(player.invincible / 60)}s`;
-          ctx.strokeText(invText, canvas.width - 150, 25);
-          ctx.fillText(invText, canvas.width - 150, 25);
-        }
-        break;
-        
-      case GAME_STATE.WON:
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        const cheerFrame = Math.floor(winAnim / 20) % 3;
-        const cheerImg = ['nugget_cheer1', 'nugget_cheer2', 'nugget_cheer3'][cheerFrame];
-        const size = canvas.width * 0.7;
-        const x = (canvas.width - size) / 2;
-        const y = (canvas.height - size) / 2;
-        drawImage(cheerImg, x, y, size, size);
-        break;
-        
-      case GAME_STATE.LEVEL_TRANSITION:
-        drawMap();
-        yarns.forEach(yarn => drawImage('yarn_blue', yarn.x * TILE_SIZE + 8, yarn.y * TILE_SIZE + 8, 16, 16));
-        specialYarns.forEach(yarn => drawImage('yarn_gold', yarn.x * TILE_SIZE + 8, yarn.y * TILE_SIZE + 8, 16, 16));
-        drawImage(`nugget_${player.direction}`, player.x, player.y, TILE_SIZE, TILE_SIZE);
-        if (gatesOpen) enemies.forEach(enemy => drawImage('cat_enemy', enemy.x, enemy.y, TILE_SIZE, TILE_SIZE));
-        
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 32px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`Level ${level}`, canvas.width / 2, canvas.height / 2 - 20);
-        ctx.fillText('Get Ready!', canvas.width / 2, canvas.height / 2 + 20);
-        ctx.textAlign = 'left';
-        break;
+      }
+    });
+    
+    // Update particles
+    particleSystem.update();
+    
+    // Check win condition
+    const activeYarns = this.yarns.filter(y => !y.collected);
+    if (activeYarns.length === 0) {
+      this.stateMachine.transition(GAME_STATE.WON);
     }
+    
+    // Update UI
+    this.updateUI();
   }
+  
+  updateUI() {
+    document.getElementById('scoreValue').textContent = this.score;
+    document.getElementById('levelValue').textContent = this.level;
+  }
+  
+  renderGame() {
+    const ctx = canvasManager.ctx;
+    
+    // Clear canvas
+    canvasManager.clear();
+    
+    // Draw map (from buffer)
+    canvasManager.drawMap(MAP_LAYOUT, this.gatesOpen);
+    canvasManager.renderMapBuffer();
+    
+    // Draw yarns
+    this.yarns.forEach(yarn => {
+      if (!yarn.collected) {
+        const x = yarn.x * CONFIG.GAME.TILE_SIZE + 8;
+        const y = yarn.y * CONFIG.GAME.TILE_SIZE + 8;
+        const imgName = yarn.type === 'special' ? 'yarn_gold' : 'yarn_blue';
+        assetManager.drawImage(ctx, imgName, x, y, 16, 16);
+      }
+    });
+    
+    // Draw player
+    if (this.player.invincible > 0) {
+      // Flashing effect
+      const alpha = 0.3 + Math.sin(this.frameCounter * 0.3) * 0.3;
+      ctx.fillStyle = `rgba(255,255,0,${alpha})`;
+      ctx.fillRect(this.player.x, this.player.y, CONFIG.GAME.TILE_SIZE, CONFIG.GAME.TILE_SIZE);
+    }
+    
+    assetManager.drawImage(
+      ctx,
+      `nugget_${this.player.direction}`,
+      this.player.x,
+      this.player.y,
+      CONFIG.GAME.TILE_SIZE,
+      CONFIG.GAME.TILE_SIZE
+    );
+    
+    // Draw enemies
+    if (this.gatesOpen) {
+      this.enemies.forEach(enemy => {
+        let enemyAlpha = 1;
+        if (this.player.invincible > 0) {
+          // Make enemies semi-transparent when player is invincible
+          enemyAlpha = 0.5 + Math.sin(this.frameCounter * 0.2) * 0.2;
+        }
+        
+        ctx.save();
+        ctx.globalAlpha = enemyAlpha;
+        assetManager.drawImage(
+          ctx,
+          'cat_enemy',
+          enemy.x,
+          enemy.y,
+          CONFIG.GAME.TILE_SIZE,
+          CONFIG.GAME.TILE_SIZE
+        );
+        ctx.restore();
+      });
+    }
+    
+    // Draw particles
+    particleSystem.render(ctx);
+    
+    // Draw UI overlay
+    this.renderUI(ctx);
+  }
+  
+  renderUI(ctx) {
+    // Draw score and level (styled text)
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 18px Arial';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    
+    const scoreText = `Score: ${this.score}`;
+    const levelText = `Level: ${this.level}`;
+    
+    ctx.strokeText(scoreText, 10, 25);
+    ctx.fillText(scoreText, 10, 25);
+    ctx.strokeText(levelText, 10, 50);
+    ctx.fillText(levelText, 10, 50);
+    
+    // Draw invincibility timer
+    if (this.player.invincible > 0) {
+      const invText = `Invincible: ${Math.ceil(this.player.invincible / 60)}s`;
+      ctx.strokeText(invText, canvas.width - 150, 25);
+      ctx.fillText(invText, canvas.width - 150, 25);
+    }
+    
+    ctx.restore();
+  }
+  
+  nextLevel() {
+    this.level++;
+    this.score += CONFIG.SCORING.LEVEL_COMPLETE(this.level);
+    this.gatesOpen = false;
+    this.frameCounter = 0;
+    
+    this.initYarns();
+    this.spawnEnemies();
+    
+    canvasManager.setNeedsMapRedraw();
+    this.stateMachine.transition(GAME_STATE.LEVEL_TRANSITION);
+  }
+  
+  update() {
+    this.stateMachine.update();
+  }
+  
+  render() {
+    this.stateMachine.render();
+  }
+}
 
-  // === Input Handling ===
-  document.addEventListener('keydown', e => {
-    if (currentState === GAME_STATE.PLAYING) {
+// === Input Manager ===
+class InputManager {
+  constructor(game) {
+    this.game = game;
+    this.touchStartX = 0;
+    this.touchStartY = 0;
+    this.virtualDPad = null;
+    
+    this.setupKeyboardControls();
+    this.setupTouchControls();
+    this.setupVirtualDPad();
+  }
+  
+  setupKeyboardControls() {
+    document.addEventListener('keydown', (e) => {
       const keyMap = {
         'ArrowUp': { x: 0, y: -1 },
         'ArrowDown': { x: 0, y: 1 },
         'ArrowLeft': { x: -1, y: 0 },
-        'ArrowRight': { x: 1, y: 0 }
+        'ArrowRight': { x: 1, y: 0 },
+        'w': { x: 0, y: -1 },
+        's': { x: 0, y: 1 },
+        'a': { x: -1, y: 0 },
+        'd': { x: 1, y: 0 },
+        'W': { x: 0, y: -1 },
+        'S': { x: 0, y: 1 },
+        'A': { x: -1, y: 0 },
+        'D': { x: 1, y: 0 }
       };
-      if (keyMap[e.key]) {
-        e.preventDefault();
-        inputBuf = keyMap[e.key];
-      }
-    }
-    
-    if ((e.key === ' ' || e.key === 'Escape') && 
-        (currentState === GAME_STATE.PLAYING || currentState === GAME_STATE.PAUSED)) {
-      e.preventDefault();
-      if (currentState === GAME_STATE.PLAYING) {
-        currentState = GAME_STATE.PAUSED;
-        pauseOverlay.style.display = 'block';
-        sounds.bgMusic.pause();
-      } else {
-        currentState = GAME_STATE.PLAYING;
-        pauseOverlay.style.display = 'none';
-        playSound('bgMusic');
-      }
-    }
-  });
-
-  // === Touch Controls (Fixed for Mobile) ===
-  let touchStartX = 0, touchStartY = 0;
-
-  // Only prevent default touch behaviors on the canvas, not the whole document
-  canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    if (e.touches.length === 1) {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-    }
-  }, { passive: false });
-
-  canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-  }, { passive: false });
-
-  canvas.addEventListener('touchend', e => {
-    e.preventDefault();
-    if (e.changedTouches.length === 1 && currentState === GAME_STATE.PLAYING) {
-      const dx = e.changedTouches[0].clientX - touchStartX;
-      const dy = e.changedTouches[0].clientY - touchStartY;
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
       
-      if (Math.max(absDx, absDy) > 30) {
-        if (absDx > absDy) {
-          inputBuf = dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
-        } else {
-          inputBuf = dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+      if (keyMap[e.key] && this.game.stateMachine.currentState === GAME_STATE.PLAYING) {
+        e.preventDefault();
+        this.game.stateMachine.handleInput(keyMap[e.key]);
+      }
+      
+      // Pause handling
+      if ((e.key === ' ' || e.key === 'Escape')) {
+        e.preventDefault();
+        if (this.game.stateMachine.currentState === GAME_STATE.PLAYING) {
+          this.game.stateMachine.transition(GAME_STATE.PAUSED);
+        } else if (this.game.stateMachine.currentState === GAME_STATE.PAUSED) {
+          this.game.stateMachine.transition(GAME_STATE.PLAYING);
         }
       }
-    }
-  }, { passive: false });
-
-  // === Game Loop ===
-  function gameLoop() {
-    updateGame();
-    render();
-    requestAnimationFrame(gameLoop);
+    });
   }
+  
+  setupTouchControls() {
+    const canvas = document.getElementById('gameCanvas');
+    
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        this.touchStartX = e.touches[0].clientX;
+        this.touchStartY = e.touches[0].clientY;
+      }
+    }, { passive: false });
+    
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+    }, { passive: false });
+    
+    canvas.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (e.changedTouches.length === 1 && this.game.stateMachine.currentState === GAME_STATE.PLAYING) {
+        const dx = e.changedTouches[0].clientX - this.touchStartX;
+        const dy = e.changedTouches[0].clientY - this.touchStartY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        
+        if (Math.max(absDx, absDy) > 30) {
+          let direction;
+          if (absDx > absDy) {
+            direction = dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+          } else {
+            direction = dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+          }
+          this.game.stateMachine.handleInput(direction);
+        }
+      }
+    }, { passive: false });
+  }
+  
+  setupVirtualDPad() {
+    // Only create D-Pad on touch devices
+    if (!('ontouchstart' in window)) return;
+    
+    const dpad = document.createElement('div');
+    dpad.className = 'virtual-dpad';
+    
+    const buttons = [
+      { dir: 'up', text: '↑' },
+      { dir: 'left', text: '←' },
+      { dir: 'right', text: '→' },
+      { dir: 'down', text: '↓' }
+    ];
+    
+    buttons.forEach(({ dir, text }) => {
+      const button = document.createElement('button');
+      button.setAttribute('data-dir', dir);
+      button.textContent = text;
+      dpad.appendChild(button);
+    });
+    
+    dpad.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const dir = e.target.dataset.dir;
+      if (dir && this.game.stateMachine.currentState === GAME_STATE.PLAYING) {
+        const directions = {
+          up: { x: 0, y: -1 },
+          down: { x: 0, y: 1 },
+          left: { x: -1, y: 0 },
+          right: { x: 1, y: 0 }
+        };
+        this.game.stateMachine.handleInput(directions[dir]);
+      }
+    }, { passive: false });
+    
+    document.body.appendChild(dpad);
+    this.virtualDPad = dpad;
+  }
+}
 
-  // === Initialization ===
-  loadImages();
-  initAudio();
+// === Main Game Loop ===
+let game;
+let lastTime = 0;
+const TARGET_FPS = 60;
+const FRAME_TIME = 1000 / TARGET_FPS;
 
-  startButton.onclick = () => {
-    startButton.style.display = 'none';
-    pauseOverlay.style.display = 'none';
-    resetGame();
-    playSound('start');
-  };
+function gameLoop(currentTime) {
+  const deltaTime = currentTime - lastTime;
+  
+  if (deltaTime >= FRAME_TIME) {
+    game.update();
+    game.render();
+    lastTime = currentTime - (deltaTime % FRAME_TIME);
+  }
+  
+  requestAnimationFrame(gameLoop);
+}
 
-  // Add touch event handler for start button to ensure mobile compatibility
-  startButton.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    startButton.click();
-  });
+// === Initialize and Start ===
+window.addEventListener('load', async () => {
+  // Wait for assets to load
+  await assetManager.loadImages();
+  await soundManager.initialize();
+  
+  // Create game instance
+  game = new Game();
+  
+  // Start game loop
+  requestAnimationFrame(gameLoop);
+});
 
-  gameLoop();
-</script>
+// END OF PART 3
+</script>    <!-- This closes the original script tag -->
 </body>
 </html>
