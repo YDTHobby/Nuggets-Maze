@@ -22,14 +22,10 @@
       height: 600px;
       max-width: 95vw;
       max-height: 95vh;
-      /* Maintain aspect ratio of 2:3 (400:600) */
       aspect-ratio: 2/3;
-      /* Scale down uniformly if needed */
       width: min(400px, 95vw);
       height: min(600px, 95vh);
-      /* If width constraint is tighter, use that to determine height */
       height: min(600px, calc(95vw * 1.5));
-      /* If height constraint is tighter, use that to determine width */
       width: min(400px, calc(95vh / 1.5));
     }
     
@@ -98,7 +94,6 @@
       gap: 5px;
       opacity: 0.6;
       z-index: 100;
-      /* Scale dpad based on screen size */
       transform: scale(min(1, 100vw / 600));
       transform-origin: bottom right;
     }
@@ -125,7 +120,6 @@
     .virtual-dpad button[data-dir="right"] { grid-column: 3; grid-row: 2; }
     .virtual-dpad button[data-dir="down"] { grid-column: 2; grid-row: 3; }
     
-    /* For very small screens */
     @media (max-width: 450px) or (max-height: 650px) {
       .virtual-dpad {
         grid-template-columns: repeat(3, 45px);
@@ -149,7 +143,6 @@
       }
     }
 
-    /* For very wide screens, limit the maximum size */
     @media (min-width: 1200px) and (min-height: 900px) {
       #gameContainer {
         width: 400px;
@@ -173,9 +166,7 @@
   </div>
 
 <script>
-// ===== PART 1: CORE SYSTEMS AND CONFIGURATION =====
-
-// === Configuration ===
+// ===== GAME CONFIGURATION =====
 const CONFIG = {
   GAME: {
     TILE_SIZE: 25,
@@ -213,7 +204,6 @@ const CONFIG = {
   ]
 };
 
-// === Game State Enum ===
 const GAME_STATE = {
   MENU: 0,
   PLAYING: 1,
@@ -234,10 +224,10 @@ const MAP_LAYOUT = [
   '#..............#', // 7
   '#.####.##.####.#', // 8
   '#......##......#', // 9
-  '###.########.###', // 10 (Spawn House Top - Gate here)
-  '###.#......#.###', // 11 (Spawn House Middle)
-  '###.#......#.###', // 12 (Spawn House Middle)
-  '###.########.###', // 13 (Spawn House Bottom)
+  '###.########.###', // 10
+  '###.#......#.###', // 11
+  '###.#......#.###', // 12
+  '###.########.###', // 13
   '#......##......#', // 14
   '#.####.##.####.#', // 15
   '#..............#', // 16
@@ -250,8 +240,7 @@ const MAP_LAYOUT = [
   '################'  // 23
 ];
 
-
-// === Sound Manager ===
+// ===== SOUND MANAGER =====
 class SoundManager {
   constructor() {
     this.sounds = {};
@@ -326,9 +315,9 @@ class SoundManager {
       Object.values(this.sounds).forEach(sound => sound.pause());
     }
   }
-} // <-- This closing brace was missing!
+}
 
-// === Asset Manager ===
+// ===== ASSET MANAGER =====
 class AssetManager {
   constructor() {
     this.images = {};
@@ -345,9 +334,7 @@ class AssetManager {
       'cat_enemy': '#8b4513'
     };
     this.loaded = false;
-    }
   }
-} // <-- The REAL closing brace for AssetManager goes he
 
   async loadImages() {
     const imagePromises = Object.keys(this.fallbackColors).map(key => {
@@ -380,7 +367,7 @@ class AssetManager {
   }
 }
 
-// === Particle System ===
+// ===== PARTICLE SYSTEM =====
 class ParticleSystem {
   constructor() {
     this.particles = [];
@@ -426,6 +413,7 @@ class ParticleSystem {
   }
 }
 
+// ===== HIGH SCORE MANAGER =====
 class HighScoreManager {
   constructor() {
     this.scores = this.load();
@@ -473,7 +461,8 @@ class HighScoreManager {
     return this.scores.slice(0, count);
   }
 }
-// === Canvas Manager ===
+
+// ===== CANVAS MANAGER =====
 class CanvasManager {
   constructor(canvas) {
     this.canvas = canvas;
@@ -533,36 +522,7 @@ class CanvasManager {
   }
 }
 
-// === Initialize core systems ===
-const canvas = document.getElementById('gameCanvas');
-const canvasManager = new CanvasManager(canvas);
-const soundManager = new SoundManager();
-const assetManager = new AssetManager();
-const particleSystem = new ParticleSystem();
-const highScoreManager = new HighScoreManager();
-
-window.addEventListener('load', async () => {
-  await assetManager.loadImages();
-  await soundManager.initialize();
-  
-  // Add the audio control listener AFTER soundManager is initialized
-  window.addEventListener('message', (event) => {
-    if (event.data.type === 'ARCADE_AUDIO_CONTROL') {
-      if (event.data.muted) {
-        soundManager.toggleMute(true);  // Force mute
-      } else {
-        soundManager.toggleMute(false); // Force unmute
-      }
-    }
-  });
-  
-  game = new Game();
-  
-  requestAnimationFrame(gameLoop);
-});
-
-// END OF PART 1
-// ===== PART 2: ENTITIES AND GAME LOGIC =====
+// ===== ENTITY BASE CLASS =====
 class Entity {
   constructor(x, y, speed) {
     this.x = x;
@@ -608,6 +568,7 @@ class Entity {
   }
 }
 
+// ===== PLAYER CLASS =====
 class Player extends Entity {
   constructor() {
     super(CONFIG.GAME.TILE_SIZE, CONFIG.GAME.TILE_SIZE * 3, CONFIG.GAME.PLAYER_SPEED);
@@ -711,6 +672,7 @@ class Player extends Entity {
   }
 }
 
+// ===== ENEMY CLASS =====
 class Enemy extends Entity {
   constructor(x, y, intelligence) {
     super(x, y, CONFIG.GAME.ENEMY_SPEED);
@@ -843,6 +805,7 @@ class Enemy extends Entity {
   }
 }
 
+// ===== YARN CLASS =====
 class Yarn {
   constructor(x, y, type = 'normal') {
     this.x = x;
@@ -883,6 +846,7 @@ class Yarn {
   }
 }
 
+// ===== GAME STATES =====
 class GameState {
   constructor(game) {
     this.game = game;
@@ -943,28 +907,29 @@ class PausedState extends GameState {
 }
 
 class GameOverState extends GameState {
-enter() {
-  soundManager.stop('bgMusic');
-  soundManager.stop('invincible');
-  soundManager.play('gameOver');
-  
-  const finalScore = this.game.score;
-  
-  setTimeout(() => {
-    if (highScoreManager.isHighScore(finalScore)) {
-      let name = prompt('NEW HIGH SCORE!\nEnter your initials (3 characters):') || 'AAA';
-      name = name.toUpperCase().substring(0, 3).padEnd(3, 'A');
-      const rank = highScoreManager.add(name, finalScore, this.game.level);
-      alert(`High Score #${rank}!\n${name} - ${finalScore}`);
-    } else {
-      alert(`Game Over!\nScore: ${finalScore}`);
-    }
+  enter() {
+    soundManager.stop('bgMusic');
+    soundManager.stop('invincible');
+    soundManager.play('gameOver');
     
-    this.game.stateMachine.transition(GAME_STATE.MENU);
-    document.getElementById('startButton').innerText = 'Play Again';
+    const finalScore = this.game.score;
+    
+    setTimeout(() => {
+      if (highScoreManager.isHighScore(finalScore)) {
+        let name = prompt('NEW HIGH SCORE!\nEnter your initials (3 characters):') || 'AAA';
+        name = name.toUpperCase().substring(0, 3).padEnd(3, 'A');
+        const rank = highScoreManager.add(name, finalScore, this.game.level);
+        alert(`High Score #${rank}!\n${name} - ${finalScore}`);
+      } else {
+        alert(`Game Over!\nScore: ${finalScore}`);
+      }
+      
+      this.game.stateMachine.transition(GAME_STATE.MENU);
+      document.getElementById('startButton').innerText = 'Play Again';
     }, 100);
+  }
 }
-}
+
 class WonState extends GameState {
   constructor(game) {
     super(game);
@@ -1033,6 +998,7 @@ class LevelTransitionState extends GameState {
   }
 }
 
+// ===== STATE MACHINE =====
 class StateMachine {
   constructor(game) {
     this.game = game;
@@ -1066,268 +1032,7 @@ class StateMachine {
   }
 }
 
-// END OF PART 2
-// ===== PART 3: GAME CLASS AND INPUT SYSTEM =====
-class Game {
-  constructor() {
-    this.player = null;
-    this.enemies = [];
-    this.yarns = [];
-    this.yarnMap = new Map();
-    
-    this.score = 0;
-    this.level = 1;
-    this.gatesOpen = false;
-    this.frameCounter = 0;
-    
-    this.stateMachine = new StateMachine(this);
-    this.inputManager = new InputManager(this);
-    
-    this.init();
-  }
-  
-  init() {
-    this.stateMachine.transition(GAME_STATE.MENU);
-    this.setupEventListeners();
-  }
-  
-  setupEventListeners() {
-    const startButton = document.getElementById('startButton');
-    
-    const handleStart = () => this.start();
-    
-    startButton.onclick = handleStart;
-    
-    startButton.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      this.start();
-    });
-  }
-  
-  start() {
-    this.resetGame();
-    this.stateMachine.transition(GAME_STATE.PLAYING);
-    soundManager.play('start');
-  }
-  
-  resetGame() {
-    this.score = 0;
-    this.level = 1;
-    this.gatesOpen = false;
-    this.frameCounter = 0;
-    
-    this.initPlayer();
-    this.initYarns();
-    this.spawnEnemies();
-    
-    canvasManager.setNeedsMapRedraw();
-  }
-  
-  initPlayer() {
-    this.player = new Player();
-  }
-  
-  initYarns() {
-    this.yarns = [];
-    this.yarnMap.clear();
-    
-    MAP_LAYOUT.forEach((row, r) => {
-      row.split('').forEach((ch, c) => {
-        if (ch === '.') {
-          const spawn = CONFIG.GAME.SPAWN_HOUSE;
-           if (!(r >= spawn.minRow && r <= spawn.maxRow && c >= spawn.minCol && c <= spawn.maxCol)) {
-            const yarn = new Yarn(c, r, 'normal');
-            this.yarns.push(yarn);
-            this.yarnMap.set(`${c},${r}`, yarn);
-          }
-        } else if (ch === 'o') {
-          const yarn = new Yarn(c, r, 'special');
-          this.yarns.push(yarn);
-          this.yarnMap.set(`${c},${r}`, yarn);
-        }
-      });
-    });
-  }
-  
-  spawnEnemies() {
-    this.enemies = [];
-    
-    const levelConfig = CONFIG.LEVELS[Math.min(this.level - 1, CONFIG.LEVELS.length - 1)];
-    const numEnemies = levelConfig.enemies || 1;
-    
-    for (let i = 0; i < numEnemies; i++) {
-      const spawn = CONFIG.GAME.SPAWN_POINT;
-      const enemy = new Enemy(
-        spawn.col * CONFIG.GAME.TILE_SIZE,
-        spawn.row * CONFIG.GAME.TILE_SIZE,
-        levelConfig.intelligence
-      );
-      enemy.speed = CONFIG.GAME.ENEMY_SPEED * (levelConfig.enemySpeed || 1);
-      this.enemies.push(enemy);
-    }
-  }
-  
-  updateGameLogic() {
-    this.frameCounter++;
-    
-    if (!this.gatesOpen && this.frameCounter >= CONFIG.TIMING.ENEMY_SPAWN_DELAY) {
-      this.gatesOpen = true;
-      canvasManager.setNeedsMapRedraw();
-    }
-    
-    this.player.update(MAP_LAYOUT);
-    
-    const playerKey = `${this.player.gridX},${this.player.gridY}`;
-    const yarn = this.yarnMap.get(playerKey);
-    if (yarn && !yarn.collected) {
-      yarn.collect(this.player, this);
-      this.yarnMap.delete(playerKey);
-      
-      if (this.player.invincible === 1) {
-        soundManager.stop('invincible');
-        if (this.stateMachine.currentState === GAME_STATE.PLAYING) {
-          soundManager.play('bgMusic');
-        }
-      }
-    }
-    
-    this.enemies.forEach(enemy => {
-      enemy.update(this.player, MAP_LAYOUT, this.gatesOpen);
-      
-      if (enemy.gridX === this.player.gridX && enemy.gridY === this.player.gridY) {
-        if (this.player.invincible > 0) {
-          this.score += CONFIG.SCORING.ENEMY_EAT;
-          enemy.respawn();
-          soundManager.play('meow');
-          
-          particleSystem.emit(enemy.x + 16, enemy.y + 16, '#ff4500', 15, 5);
-        } else {
-          this.stateMachine.transition(GAME_STATE.GAME_OVER);
-        }
-      }
-    });
-    
-    particleSystem.update();
-    
-    const activeYarns = this.yarns.filter(y => !y.collected);
-    if (activeYarns.length === 0) {
-      this.stateMachine.transition(GAME_STATE.WON);
-    }
-    
-    this.updateUI();
-  }
-  
-  updateUI() {
-    document.getElementById('scoreValue').textContent = this.score;
-    document.getElementById('levelValue').textContent = this.level;
-  }
-  
-  renderGame() {
-    const ctx = canvasManager.ctx;
-    
-    canvasManager.clear();
-    
-    canvasManager.drawMap(MAP_LAYOUT, this.gatesOpen);
-    canvasManager.renderMapBuffer();
-    
-    this.yarns.forEach(yarn => {
-      if (!yarn.collected) {
-        const x = yarn.x * CONFIG.GAME.TILE_SIZE + 8;
-        const y = yarn.y * CONFIG.GAME.TILE_SIZE + 8;
-        const imgName = yarn.type === 'special' ? 'yarn_gold' : 'yarn_blue';
-        assetManager.drawImage(ctx, imgName, x, y, 12, 12);
-      }
-    });
-    
-    if (this.player.invincible > 0) {
-      const alpha = 0.3 + Math.sin(this.frameCounter * 0.3) * 0.3;
-      ctx.fillStyle = `rgba(255,255,0,${alpha})`;
-      ctx.fillRect(this.player.x, this.player.y, CONFIG.GAME.TILE_SIZE, CONFIG.GAME.TILE_SIZE);
-    }
-    
-    assetManager.drawImage(
-      ctx,
-      `nugget_${this.player.direction}`,
-      this.player.x,
-      this.player.y,
-      CONFIG.GAME.TILE_SIZE,
-      CONFIG.GAME.TILE_SIZE
-    );
-    
-    // --- THIS IS THE MODIFIED BLOCK ---
-    // The "if (this.gatesOpen)" wrapper has been removed so enemies are drawn from the start.
-    this.enemies.forEach(enemy => {
-      let enemyAlpha = 1;
-      if (this.player.invincible > 0) {
-        // Make enemies semi-transparent when player is invincible
-        enemyAlpha = 0.5 + Math.sin(this.frameCounter * 0.2) * 0.2;
-      }
-      
-      ctx.save();
-      ctx.globalAlpha = enemyAlpha;
-      assetManager.drawImage(
-        ctx,
-        'cat_enemy',
-        enemy.x,
-        enemy.y,
-        CONFIG.GAME.TILE_SIZE,
-        CONFIG.GAME.TILE_SIZE
-      );
-      ctx.restore();
-    });
-    // --- END OF MODIFIED BLOCK ---
-    
-    particleSystem.render(ctx);
-    
-    this.renderUI(ctx);
-  }
-  
-  renderUI(ctx) {
-    ctx.save();
-    ctx.fillStyle = '#000';
-    ctx.font = 'bold 16px Arial';
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    
-    const scoreText = `Score: ${this.score}`;
-    const levelText = `Level: ${this.level}`;
-    
-    ctx.strokeText(scoreText, 8, 20);
-    ctx.fillText(scoreText, 8, 20);
-    ctx.strokeText(levelText, 8, 40);
-    ctx.fillText(levelText, 8, 40);
-    
-    if (this.player.invincible > 0) {
-      const invText = `Invincible: ${Math.ceil(this.player.invincible / 60)}s`;
-      ctx.strokeText(invText, canvas.width - 120, 20);
-      ctx.fillText(invText, canvas.width - 120, 20);
-    }
-    
-    ctx.restore();
-  }
-  
-  nextLevel() {
-    this.level++;
-    this.score += CONFIG.SCORING.LEVEL_COMPLETE(this.level);
-    this.gatesOpen = false;
-    this.frameCounter = 0;
-    
-    this.initYarns();
-    this.spawnEnemies();
-    
-    canvasManager.setNeedsMapRedraw();
-    this.stateMachine.transition(GAME_STATE.LEVEL_TRANSITION);
-  }
-  
-  update() {
-    this.stateMachine.update();
-  }
-  
-  render() {
-    this.stateMachine.render();
-  }
-}
-
+// ===== INPUT MANAGER =====
 class InputManager {
   constructor(game) {
     this.game = game;
@@ -1448,6 +1153,271 @@ class InputManager {
   }
 }
 
+// ===== MAIN GAME CLASS =====
+class Game {
+  constructor() {
+    this.player = null;
+    this.enemies = [];
+    this.yarns = [];
+    this.yarnMap = new Map();
+    
+    this.score = 0;
+    this.level = 1;
+    this.gatesOpen = false;
+    this.frameCounter = 0;
+    
+    this.stateMachine = new StateMachine(this);
+    this.inputManager = new InputManager(this);
+    
+    this.init();
+  }
+  
+  init() {
+    this.stateMachine.transition(GAME_STATE.MENU);
+    this.setupEventListeners();
+  }
+  
+  setupEventListeners() {
+    const startButton = document.getElementById('startButton');
+    
+    const handleStart = () => this.start();
+    
+    startButton.onclick = handleStart;
+    
+    startButton.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      this.start();
+    });
+  }
+  
+  start() {
+    this.resetGame();
+    this.stateMachine.transition(GAME_STATE.PLAYING);
+    soundManager.play('start');
+  }
+  
+  resetGame() {
+    this.score = 0;
+    this.level = 1;
+    this.gatesOpen = false;
+    this.frameCounter = 0;
+    
+    this.initPlayer();
+    this.initYarns();
+    this.spawnEnemies();
+    
+    canvasManager.setNeedsMapRedraw();
+  }
+  
+  initPlayer() {
+    this.player = new Player();
+  }
+  
+  initYarns() {
+    this.yarns = [];
+    this.yarnMap.clear();
+    
+    MAP_LAYOUT.forEach((row, r) => {
+      row.split('').forEach((ch, c) => {
+        if (ch === '.') {
+          const spawn = CONFIG.GAME.SPAWN_HOUSE;
+          if (!(r >= spawn.minRow && r <= spawn.maxRow && c >= spawn.minCol && c <= spawn.maxCol)) {
+            const yarn = new Yarn(c, r, 'normal');
+            this.yarns.push(yarn);
+            this.yarnMap.set(`${c},${r}`, yarn);
+          }
+        } else if (ch === 'o') {
+          const yarn = new Yarn(c, r, 'special');
+          this.yarns.push(yarn);
+          this.yarnMap.set(`${c},${r}`, yarn);
+        }
+      });
+    });
+  }
+  
+  spawnEnemies() {
+    this.enemies = [];
+    
+    const levelConfig = CONFIG.LEVELS[Math.min(this.level - 1, CONFIG.LEVELS.length - 1)];
+    const numEnemies = levelConfig.enemies || 1;
+    
+    for (let i = 0; i < numEnemies; i++) {
+      const spawn = CONFIG.GAME.SPAWN_POINT;
+      const enemy = new Enemy(
+        spawn.col * CONFIG.GAME.TILE_SIZE,
+        spawn.row * CONFIG.GAME.TILE_SIZE,
+        levelConfig.intelligence
+      );
+      enemy.speed = CONFIG.GAME.ENEMY_SPEED * (levelConfig.enemySpeed || 1);
+      this.enemies.push(enemy);
+    }
+  }
+  
+  updateGameLogic() {
+    this.frameCounter++;
+    
+    if (!this.gatesOpen && this.frameCounter >= CONFIG.TIMING.ENEMY_SPAWN_DELAY) {
+      this.gatesOpen = true;
+      canvasManager.setNeedsMapRedraw();
+    }
+    
+    this.player.update(MAP_LAYOUT);
+    
+    const playerKey = `${this.player.gridX},${this.player.gridY}`;
+    const yarn = this.yarnMap.get(playerKey);
+    if (yarn && !yarn.collected) {
+      yarn.collect(this.player, this);
+      this.yarnMap.delete(playerKey);
+      
+      if (this.player.invincible === 1) {
+        soundManager.stop('invincible');
+        if (this.stateMachine.currentState === GAME_STATE.PLAYING) {
+          soundManager.play('bgMusic');
+        }
+      }
+    }
+    
+    this.enemies.forEach(enemy => {
+      enemy.update(this.player, MAP_LAYOUT, this.gatesOpen);
+      
+      if (enemy.gridX === this.player.gridX && enemy.gridY === this.player.gridY) {
+        if (this.player.invincible > 0) {
+          this.score += CONFIG.SCORING.ENEMY_EAT;
+          enemy.respawn();
+          soundManager.play('meow');
+          
+          particleSystem.emit(enemy.x + 16, enemy.y + 16, '#ff4500', 15, 5);
+        } else {
+          this.stateMachine.transition(GAME_STATE.GAME_OVER);
+        }
+      }
+    });
+    
+    particleSystem.update();
+    
+    const activeYarns = this.yarns.filter(y => !y.collected);
+    if (activeYarns.length === 0) {
+      this.stateMachine.transition(GAME_STATE.WON);
+    }
+    
+    this.updateUI();
+  }
+  
+  updateUI() {
+    document.getElementById('scoreValue').textContent = this.score;
+    document.getElementById('levelValue').textContent = this.level;
+  }
+  
+  renderGame() {
+    const ctx = canvasManager.ctx;
+    
+    canvasManager.clear();
+    
+    canvasManager.drawMap(MAP_LAYOUT, this.gatesOpen);
+    canvasManager.renderMapBuffer();
+    
+    this.yarns.forEach(yarn => {
+      if (!yarn.collected) {
+        const x = yarn.x * CONFIG.GAME.TILE_SIZE + 8;
+        const y = yarn.y * CONFIG.GAME.TILE_SIZE + 8;
+        const imgName = yarn.type === 'special' ? 'yarn_gold' : 'yarn_blue';
+        assetManager.drawImage(ctx, imgName, x, y, 12, 12);
+      }
+    });
+    
+    if (this.player.invincible > 0) {
+      const alpha = 0.3 + Math.sin(this.frameCounter * 0.3) * 0.3;
+      ctx.fillStyle = `rgba(255,255,0,${alpha})`;
+      ctx.fillRect(this.player.x, this.player.y, CONFIG.GAME.TILE_SIZE, CONFIG.GAME.TILE_SIZE);
+    }
+    
+    assetManager.drawImage(
+      ctx,
+      `nugget_${this.player.direction}`,
+      this.player.x,
+      this.player.y,
+      CONFIG.GAME.TILE_SIZE,
+      CONFIG.GAME.TILE_SIZE
+    );
+    
+    this.enemies.forEach(enemy => {
+      let enemyAlpha = 1;
+      if (this.player.invincible > 0) {
+        enemyAlpha = 0.5 + Math.sin(this.frameCounter * 0.2) * 0.2;
+      }
+      
+      ctx.save();
+      ctx.globalAlpha = enemyAlpha;
+      assetManager.drawImage(
+        ctx,
+        'cat_enemy',
+        enemy.x,
+        enemy.y,
+        CONFIG.GAME.TILE_SIZE,
+        CONFIG.GAME.TILE_SIZE
+      );
+      ctx.restore();
+    });
+    
+    particleSystem.render(ctx);
+    
+    this.renderUI(ctx);
+  }
+  
+  renderUI(ctx) {
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 16px Arial';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    
+    const scoreText = `Score: ${this.score}`;
+    const levelText = `Level: ${this.level}`;
+    
+    ctx.strokeText(scoreText, 8, 20);
+    ctx.fillText(scoreText, 8, 20);
+    ctx.strokeText(levelText, 8, 40);
+    ctx.fillText(levelText, 8, 40);
+    
+    if (this.player.invincible > 0) {
+      const invText = `Invincible: ${Math.ceil(this.player.invincible / 60)}s`;
+      ctx.strokeText(invText, canvas.width - 120, 20);
+      ctx.fillText(invText, canvas.width - 120, 20);
+    }
+    
+    ctx.restore();
+  }
+  
+  nextLevel() {
+    this.level++;
+    this.score += CONFIG.SCORING.LEVEL_COMPLETE(this.level);
+    this.gatesOpen = false;
+    this.frameCounter = 0;
+    
+    this.initYarns();
+    this.spawnEnemies();
+    
+    canvasManager.setNeedsMapRedraw();
+    this.stateMachine.transition(GAME_STATE.LEVEL_TRANSITION);
+  }
+  
+  update() {
+    this.stateMachine.update();
+  }
+  
+  render() {
+    this.stateMachine.render();
+  }
+}
+
+// ===== INITIALIZATION =====
+const canvas = document.getElementById('gameCanvas');
+const canvasManager = new CanvasManager(canvas);
+const soundManager = new SoundManager();
+const assetManager = new AssetManager();
+const particleSystem = new ParticleSystem();
+const highScoreManager = new HighScoreManager();
+
 let game;
 let lastTime = 0;
 const TARGET_FPS = 60;
@@ -1469,12 +1439,21 @@ window.addEventListener('load', async () => {
   await assetManager.loadImages();
   await soundManager.initialize();
   
+  // Set up arcade audio control listener AFTER soundManager is initialized
+  window.addEventListener('message', (event) => {
+    if (event.data.type === 'ARCADE_AUDIO_CONTROL') {
+      if (event.data.muted) {
+        soundManager.toggleMute(true);  // Force mute
+      } else {
+        soundManager.toggleMute(false); // Force unmute
+      }
+    }
+  });
+  
   game = new Game();
   
   requestAnimationFrame(gameLoop);
 });
-
-// END OF PART 3
 </script>
 </body>
 </html>
