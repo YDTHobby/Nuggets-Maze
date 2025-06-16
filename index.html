@@ -315,17 +315,18 @@ class SoundManager {
     });
   }
 
-toggleMute(forceMute = null) {
-  if (typeof forceMute === 'boolean') {
-    this.muted = forceMute;
-  } else {
-    this.muted = !this.muted;
-  }
+  toggleMute(forceMute = null) {
+    if (typeof forceMute === 'boolean') {
+      this.muted = forceMute;
+    } else {
+      this.muted = !this.muted;
+    }
 
-  if (this.muted) {
-    Object.values(this.sounds).forEach(sound => sound.pause());
+    if (this.muted) {
+      Object.values(this.sounds).forEach(sound => sound.pause());
+    }
   }
-}
+} // <-- This closing brace was missing!
 
 // === Asset Manager ===
 class AssetManager {
@@ -344,7 +345,9 @@ class AssetManager {
       'cat_enemy': '#8b4513'
     };
     this.loaded = false;
+    }
   }
+} // <-- The REAL closing brace for AssetManager goes he
 
   async loadImages() {
     const imagePromises = Object.keys(this.fallbackColors).map(key => {
