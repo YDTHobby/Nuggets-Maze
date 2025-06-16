@@ -3,196 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Nugget's Yarn Maze - Arcade Edition</title>
+  <title>Nugget's Yarn Maze</title>
   <style>
     body {
       margin: 0;
-      padding: 20px;
-      background: linear-gradient(180deg, #2a0845 0%, #5e1a7a 50%, #2a0845 100%);
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      min-height: 100vh;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-    
-    #gameWrapper {
-      display: flex;
-      align-items: flex-start;
-      justify-content: center; /* Center the arcade cabinet */
-      max-width: 1200px;
-      width: 100%;
-    }
-    
-    /* Arcade Machine Styles */
-    #arcadeMachine {
-      position: relative;
-      width: 480px;
-      height: 700px;
-      background: linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%);
-      border-radius: 20px 20px 10px 10px;
-      box-shadow:
-        0 0 50px rgba(0,0,0,0.5),
-        inset 0 0 20px rgba(255,255,255,0.1);
-      padding: 15px;
-      padding-top: 30px;
-      transform: perspective(1000px) rotateX(2deg);
-      margin-top: 70px;
-      flex-shrink: 0;
-    }
-    
-    #marquee {
-      position: absolute;
-      top: -60px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 380px;
-      height: 60px;
-      background: linear-gradient(135deg, #f9c5d1 0%, #ff69b4 100%);
-      border-radius: 10px 10px 0 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow:
-        0 0 30px rgba(255,105,180,0.5),
-        inset 0 0 20px rgba(255,255,255,0.3);
-      z-index: 1;
-    }
-    
-    #marquee h1 {
-      color: #333;
-      font-size: 20px;
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-      font-weight: bold;
-      letter-spacing: 1px;
-      margin: 0;
-    }
-    
-    #screenBezel {
-      position: relative;
-      width: 100%;
-      height: 450px;
-      background: #000;
-      border-radius: 15px;
-      padding: 15px;
-      box-shadow:
-        inset 0 0 30px rgba(0,0,0,0.8),
-        0 0 10px rgba(255,255,255,0.1);
-      box-sizing: border-box;
-    }
-    
-    #screenContainer {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      background: #111;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow:
-        inset 0 0 40px rgba(0,0,0,0.9),
-        0 0 20px rgba(255,192,203,0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    /* CRT Screen Effect */
-    #screenContainer::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background:
-        repeating-linear-gradient(
-          0deg,
-          rgba(0,0,0,0.15) 0px,
-          transparent 1px,
-          transparent 2px,
-          rgba(0,0,0,0.15) 3px
-        );
-      pointer-events: none;
-      z-index: 3;
+      padding: 0;
     }
     
     #gameContainer {
       position: relative;
       width: 400px;
-      height: 400px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      height: 600px;
     }
     
-    #controlPanel {
-      position: absolute;
-      bottom: 15px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 90%;
-      height: 100px;
-      background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
-      border-radius: 10px;
-      box-shadow:
-        inset 0 2px 5px rgba(0,0,0,0.5),
-        0 2px 5px rgba(255,255,255,0.1);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 40px;
-    }
-    
-    .arcadeButton {
-      width: 70px;
-      height: 70px;
-      background: radial-gradient(circle at 30% 30%, #ff69b4, #cc1166);
-      border: 5px solid #000;
-      border-radius: 50%;
-      box-shadow:
-        0 5px 10px rgba(0,0,0,0.5),
-        inset 0 -5px 10px rgba(0,0,0,0.3),
-        inset 0 5px 10px rgba(255,255,255,0.3);
-      cursor: pointer;
-      position: relative;
-      transition: all 0.1s;
-    }
-    
-    .arcadeButton:active {
-      transform: translateY(3px);
-      box-shadow:
-        0 2px 5px rgba(0,0,0,0.5),
-        inset 0 -2px 5px rgba(0,0,0,0.3),
-        inset 0 2px 5px rgba(255,255,255,0.3);
-    }
-    
-    .arcadeButton::after {
-      content: 'START';
-      position: absolute;
-      bottom: -25px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: #fff;
-      font-size: 12px;
-      font-weight: bold;
-      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-    }
-        
-    /* Game specific styles */
     canvas {
       display: block;
       background-color: #fff8dc;
-      border: 2px solid #333;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
       touch-action: none;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
       width: 100%;
       height: 100%;
-      max-width: 400px;
-      max-height: 400px;
     }
     
     #startButton, #pauseOverlay {
@@ -272,57 +103,10 @@
     .virtual-dpad button[data-dir="right"] { grid-column: 3; grid-row: 2; }
     .virtual-dpad button[data-dir="down"] { grid-column: 2; grid-row: 3; }
     
-    /* Mobile/Tablet Adjustments */
-    @media (max-width: 850px) {
-      body {
-        padding: 10px;
-      }
-      
-      #gameWrapper {
-        flex-direction: column;
-        align-items: center;
-      }
-      
-      #arcadeMachine {
-        width: 90vw;
-        max-width: 480px;
-        margin-top: 20px;
-      }
-    }
-    
     @media (max-width: 520px) {
-      #arcadeMachine {
-        transform: none;
-        height: auto;
-        padding-bottom: 120px;
-      }
-      
-      #marquee {
-        width: 90%;
-        top: -50px;
-        height: 50px;
-      }
-      
-      #marquee h1 {
-        font-size: 16px;
-      }
-      
-      #screenBezel {
-        height: 350px;
-      }
-      
       #gameContainer {
         width: 300px;
-        height: 300px;
-      }
-      
-      #controlPanel {
-        height: 80px;
-      }
-      
-      .arcadeButton {
-        width: 50px;
-        height: 50px;
+        height: 450px;
       }
       
       .virtual-dpad {
@@ -335,40 +119,16 @@
   </style>
 </head>
 <body>
-  <div id="gameWrapper">
-    <!-- Main Arcade Machine Body -->
-    <div id="arcadeMachine">
-      
-      <!-- Top Marquee/Sign -->
-      <div id="marquee">
-        <h1>NUGGET'S YARN MAZE</h1>
-      </div>
-      
-      <!-- Screen Bezel (Frame around the screen) -->
-      <div id="screenBezel">
-        
-        <!-- Screen Area (with CRT effect) -->
-        <div id="screenContainer">
-          <!-- Game itself is nested here -->
-          <div id="gameContainer">
-            <button id="startButton">Start Game</button>
-            <div id="pauseOverlay">
-              <h2>Game Paused</h2>
-              <p>Press SPACE or ESC to resume</p>
-            </div>
-            <canvas id="gameCanvas" width="400" height="400"></canvas>
-            <div id="scoreDisplay" style="display: none;">
-              <div>Score: <span id="scoreValue">0</span></div>
-              <div>Level: <span id="levelValue">1</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Control Panel at the bottom -->
-      <div id="controlPanel">
-        <button class="arcadeButton" id="startBtn"></button>
-      </div>
+  <div id="gameContainer">
+    <button id="startButton">Start Game</button>
+    <div id="pauseOverlay">
+      <h2>Game Paused</h2>
+      <p>Press SPACE or ESC to resume</p>
+    </div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="scoreDisplay" style="display: none;">
+      <div>Score: <span id="scoreValue">0</span></div>
+      <div>Level: <span id="levelValue">1</span></div>
     </div>
   </div>
 
@@ -378,17 +138,17 @@
 // === Configuration ===
 const CONFIG = {
   GAME: {
-    TILE_SIZE: 25,  // Reduced from 32 to fit 400px canvas
-    PLAYER_SPEED: 1.2,  // Adjusted for smaller tile size
+    TILE_SIZE: 25,
+    PLAYER_SPEED: 1.2,
     ENEMY_SPEED: 1.2,
     ALIGNMENT_THRESHOLD: 2,
     INPUT_BUFFER_TIMEOUT: 3000,
     GATE_POSITIONS: [
-      { row: 6, col: 4 }, { row: 6, col: 5 }, { row: 6, col: 6 }, { row: 6, col: 7 },
-      { row: 6, col: 8 }, { row: 6, col: 9 }, { row: 6, col: 10 }, { row: 6, col: 11 }
+      { row: 10, col: 4 }, { row: 10, col: 5 }, { row: 10, col: 6 }, { row: 10, col: 7 },
+      { row: 10, col: 8 }, { row: 10, col: 9 }, { row: 10, col: 10 }, { row: 10, col: 11 }
     ],
-    SPAWN_POINT: { row: 7, col: 7 },
-    SPAWN_HOUSE: { minRow: 6, maxRow: 8, minCol: 4, maxCol: 11 }
+    SPAWN_POINT: { row: 11, col: 7 },
+    SPAWN_HOUSE: { minRow: 10, maxRow: 13, minCol: 4, maxCol: 11 }
   },
   SCORING: {
     YARN: 1,
@@ -423,24 +183,33 @@ const GAME_STATE = {
   LEVEL_TRANSITION: 5
 };
 
-// === Map Layout ===
 const MAP_LAYOUT = [
-  '################',
-  '#......##......#',
-  '#.####.##.####.#',
-  '#..............#',
-  '#.####.##.####.#',
-  '#..............#',
-  '###.########.###',
-  '###.#......#.###',
-  '###.########.###',
-  '#..............#',
-  '#.####.##.####.#',
-  '#......##......#',
-  '#.####.##.####.#',
-  '#o............o#',
-  '################'
+  '################', // 0
+  '#o.....##.....o#', // 1
+  '#.####.##.####.#', // 2
+  '#..............#', // 3
+  '#.##.######.##.#', // 4
+  '#..............#', // 5
+  '######.##.######', // 6
+  '#..............#', // 7
+  '#.####.##.####.#', // 8
+  '#......##......#', // 9
+  '###.########.###', // 10 (Spawn House Top - Gate here)
+  '###.#......#.###', // 11 (Spawn House Middle)
+  '###.#......#.###', // 12 (Spawn House Middle)
+  '###.########.###', // 13 (Spawn House Bottom)
+  '#......##......#', // 14
+  '#.####.##.####.#', // 15
+  '#..............#', // 16
+  '######.##.######', // 17
+  '#..............#', // 18
+  '#.##.######.##.#', // 19
+  '#..............#', // 20
+  '#.####.##.####.#', // 21
+  '#o.....##.....o#', // 22
+  '################'  // 23
 ];
+
 
 // === Sound Manager ===
 class SoundManager {
@@ -664,7 +433,6 @@ class CanvasManager {
     this.ctx = canvas.getContext('2d');
     this.ctx.imageSmoothingEnabled = false;
     
-    // Create offscreen canvas for static map
     this.mapCanvas = document.createElement('canvas');
     this.mapCanvas.width = canvas.width;
     this.mapCanvas.height = canvas.height;
@@ -680,23 +448,24 @@ class CanvasManager {
     const ctx = this.mapCtx;
     const TILE_SIZE = CONFIG.GAME.TILE_SIZE;
     
-    // Clear background
     ctx.fillStyle = '#fff8dc';
     ctx.fillRect(0, 0, this.mapCanvas.width, this.mapCanvas.height);
     
-    // Draw walls
-    ctx.fillStyle = '#d9d4b0';
+    const wallColor = '#d9d4b0';
+    const gateOpenColor = '#a0d8a0';
+
     for (let r = 0; r < map.length; r++) {
       for (let c = 0; c < map[r].length; c++) {
         if (map[r][c] === '#') {
           const isGate = CONFIG.GAME.GATE_POSITIONS.some(g => g.row === r && g.col === c);
-          if (isGate && gatesOpen) {
-            ctx.fillStyle = '#a0d8a0';
-            ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-            ctx.fillStyle = '#d9d4b0';
-          } else if (!isGate) {
-            ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+          
+          if (isGate) {
+            ctx.fillStyle = gatesOpen ? gateOpenColor : wallColor;
+          } else {
+            ctx.fillStyle = wallColor;
           }
+          
+          ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
         }
       }
     }
@@ -725,7 +494,6 @@ const assetManager = new AssetManager();
 const particleSystem = new ParticleSystem();
 const highScoreManager = new HighScoreManager();
 
-// Initialize on page load
 window.addEventListener('load', async () => {
   await assetManager.loadImages();
   await soundManager.initialize();
@@ -733,9 +501,6 @@ window.addEventListener('load', async () => {
 
 // END OF PART 1
 // ===== PART 2: ENTITIES AND GAME LOGIC =====
-// Add this code inside the <script> tag after Part 1
-
-// === Base Entity Class ===
 class Entity {
   constructor(x, y, speed) {
     this.x = x;
@@ -772,7 +537,6 @@ class Entity {
     this.x += dx * this.speed;
     this.y += dy * this.speed;
     
-    // Only update grid position if we've moved significantly
     if (Math.abs(this.x - this.lastX) >= CONFIG.GAME.TILE_SIZE / 2 || 
         Math.abs(this.y - this.lastY) >= CONFIG.GAME.TILE_SIZE / 2) {
       this.updateGridPosition();
@@ -782,7 +546,6 @@ class Entity {
   }
 }
 
-// === Player Class ===
 class Player extends Entity {
   constructor() {
     super(CONFIG.GAME.TILE_SIZE, CONFIG.GAME.TILE_SIZE * 3, CONFIG.GAME.PLAYER_SPEED);
@@ -816,7 +579,6 @@ class Player extends Entity {
   update(map) {
     this.clearOldInputBuffer();
 
-    // Handle buffered input at intersections
     if (this.isAligned() && this.inputBuffer) {
       const snapX = Math.round(this.x / CONFIG.GAME.TILE_SIZE) * CONFIG.GAME.TILE_SIZE;
       const snapY = Math.round(this.y / CONFIG.GAME.TILE_SIZE) * CONFIG.GAME.TILE_SIZE;
@@ -844,7 +606,6 @@ class Player extends Entity {
       }
     }
 
-    // Continue movement
     const newX = this.x + this.dirX * this.speed;
     const newY = this.y + this.dirY * this.speed;
 
@@ -869,12 +630,10 @@ class Player extends Entity {
       this.updateGridPosition();
     }
 
-    // Update invincibility
     if (this.invincible > 0) {
       this.invincible--;
     }
 
-    // Update power-ups
     this.powerUps = this.powerUps.filter(powerUp => {
       powerUp.duration--;
       if (powerUp.duration <= 0 && powerUp.revert) {
@@ -890,7 +649,6 @@ class Player extends Entity {
   }
 }
 
-// === Enemy Class ===
 class Enemy extends Entity {
   constructor(x, y, intelligence) {
     super(x, y, CONFIG.GAME.ENEMY_SPEED);
@@ -906,7 +664,6 @@ class Enemy extends Entity {
     const ch = map[row] && map[row][col];
     
     if (ch !== '#') {
-      // Check if enemy is trying to re-enter spawn area
       if (this.hasLeftSpawn) {
         const spawn = CONFIG.GAME.SPAWN_HOUSE;
         if (row >= spawn.minRow && row <= spawn.maxRow && 
@@ -917,7 +674,6 @@ class Enemy extends Entity {
       return true;
     }
     
-    // Check if it's a gate
     if (gatesOpen) {
       return CONFIG.GAME.GATE_POSITIONS.some(g => g.row === row && g.col === col);
     }
@@ -941,7 +697,6 @@ class Enemy extends Entity {
       { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }
     ];
     
-    // Filter out reverse direction and invalid moves
     const possibleDirs = directions.filter(dir => {
       if (this.dirX !== 0 && dir.x === -this.dirX) return false;
       if (this.dirY !== 0 && dir.y === -this.dirY) return false;
@@ -952,7 +707,6 @@ class Enemy extends Entity {
     });
 
     if (possibleDirs.length === 0) {
-      // If stuck, allow reverse
       const reverseDir = directions.find(dir => 
         this.canMove(this.x + dir.x * CONFIG.GAME.TILE_SIZE, 
                      this.y + dir.y * CONFIG.GAME.TILE_SIZE, map, gatesOpen)
@@ -966,9 +720,7 @@ class Enemy extends Entity {
 
     let chosenDir;
     
-    // Use intelligence to decide behavior
     if (Math.random() < this.intelligence && player.invincible === 0) {
-      // Chase behavior
       const dx = player.x - this.x;
       const dy = player.y - this.y;
       
@@ -977,16 +729,14 @@ class Enemy extends Entity {
         return score > best.score ? { dir, score } : best;
       }, { score: -Infinity }).dir;
     } else if (player.invincible > 0) {
-      // Flee behavior
       const dx = player.x - this.x;
       const dy = player.y - this.y;
       
       chosenDir = possibleDirs.reduce((best, dir) => {
-        const score = -(dir.x * dx + dir.y * dy); // Negative for fleeing
+        const score = -(dir.x * dx + dir.y * dy);
         return score > best.score ? { dir, score } : best;
       }, { score: -Infinity }).dir;
     } else {
-      // Random behavior
       chosenDir = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
     }
     
@@ -999,7 +749,6 @@ class Enemy extends Entity {
 
     this.checkIfLeftSpawn();
 
-    // Choose new direction at intersections
     if (this.isAligned() && (
         this.dirX === 0 && this.dirY === 0 || 
         !this.canMove(this.x + this.dirX * CONFIG.GAME.TILE_SIZE, 
@@ -1007,7 +756,6 @@ class Enemy extends Entity {
       this.chooseDirection(player, map, gatesOpen);
     }
 
-    // Move
     const newX = this.x + this.dirX * this.speed;
     const newY = this.y + this.dirY * this.speed;
 
@@ -1033,7 +781,6 @@ class Enemy extends Entity {
   }
 }
 
-// === Collectible Classes ===
 class Yarn {
   constructor(x, y, type = 'normal') {
     this.x = x;
@@ -1074,7 +821,6 @@ class Yarn {
   }
 }
 
-// === Game State Machine ===
 class GameState {
   constructor(game) {
     this.game = game;
@@ -1100,7 +846,6 @@ class MenuState extends GameState {
 
 class PlayingState extends GameState {
   enter() {
-    document.getElementById('scoreDisplay').style.display = 'block';
     soundManager.play('bgMusic');
   }
   
@@ -1157,7 +902,7 @@ enter() {
     document.getElementById('startButton').innerText = 'Play Again';
     }, 100);
 }
-}  // Add this closing brace for the class
+}
 class WonState extends GameState {
   constructor(game) {
     super(game);
@@ -1226,7 +971,6 @@ class LevelTransitionState extends GameState {
   }
 }
 
-// === State Machine ===
 class StateMachine {
   constructor(game) {
     this.game = game;
@@ -1262,15 +1006,12 @@ class StateMachine {
 
 // END OF PART 2
 // ===== PART 3: GAME CLASS AND INPUT SYSTEM =====
-// Add this code inside the <script> tag after Part 2
-
-// === Main Game Class ===
 class Game {
   constructor() {
     this.player = null;
     this.enemies = [];
     this.yarns = [];
-    this.yarnMap = new Map(); // Spatial hash for faster collision detection
+    this.yarnMap = new Map();
     
     this.score = 0;
     this.level = 1;
@@ -1290,19 +1031,12 @@ class Game {
   
   setupEventListeners() {
     const startButton = document.getElementById('startButton');
-    const arcadeButton = document.getElementById('startBtn');
     
     const handleStart = () => this.start();
     
     startButton.onclick = handleStart;
-    arcadeButton.onclick = handleStart;
     
     startButton.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      this.start();
-    });
-    
-    arcadeButton.addEventListener('touchend', (e) => {
       e.preventDefault();
       this.start();
     });
@@ -1338,9 +1072,8 @@ class Game {
     MAP_LAYOUT.forEach((row, r) => {
       row.split('').forEach((ch, c) => {
         if (ch === '.') {
-          // Don't place yarn in spawn area
-          const spawn = CONFIG.GAME.SPAWN_POINT;
-          if (!(r === spawn.row && c >= spawn.col - 2 && c <= spawn.col + 3)) {
+          const spawn = CONFIG.GAME.SPAWN_HOUSE;
+           if (!(r >= spawn.minRow && r <= spawn.maxRow && c >= spawn.minCol && c <= spawn.maxCol)) {
             const yarn = new Yarn(c, r, 'normal');
             this.yarns.push(yarn);
             this.yarnMap.set(`${c},${r}`, yarn);
@@ -1375,23 +1108,19 @@ class Game {
   updateGameLogic() {
     this.frameCounter++;
     
-    // Open gates after delay
     if (!this.gatesOpen && this.frameCounter >= CONFIG.TIMING.ENEMY_SPAWN_DELAY) {
       this.gatesOpen = true;
       canvasManager.setNeedsMapRedraw();
     }
     
-    // Update player
     this.player.update(MAP_LAYOUT);
     
-    // Check yarn collection using spatial hash
     const playerKey = `${this.player.gridX},${this.player.gridY}`;
     const yarn = this.yarnMap.get(playerKey);
     if (yarn && !yarn.collected) {
       yarn.collect(this.player, this);
       this.yarnMap.delete(playerKey);
       
-      // Check for invincibility ending
       if (this.player.invincible === 1) {
         soundManager.stop('invincible');
         if (this.stateMachine.currentState === GAME_STATE.PLAYING) {
@@ -1400,37 +1129,29 @@ class Game {
       }
     }
     
-    // Update enemies
     this.enemies.forEach(enemy => {
       enemy.update(this.player, MAP_LAYOUT, this.gatesOpen);
       
-      // Check collision with player
       if (enemy.gridX === this.player.gridX && enemy.gridY === this.player.gridY) {
         if (this.player.invincible > 0) {
-          // Eat enemy
           this.score += CONFIG.SCORING.ENEMY_EAT;
           enemy.respawn();
           soundManager.play('meow');
           
-          // Particle effect at enemy position
           particleSystem.emit(enemy.x + 16, enemy.y + 16, '#ff4500', 15, 5);
         } else {
-          // Game over
           this.stateMachine.transition(GAME_STATE.GAME_OVER);
         }
       }
     });
     
-    // Update particles
     particleSystem.update();
     
-    // Check win condition
     const activeYarns = this.yarns.filter(y => !y.collected);
     if (activeYarns.length === 0) {
       this.stateMachine.transition(GAME_STATE.WON);
     }
     
-    // Update UI
     this.updateUI();
   }
   
@@ -1442,26 +1163,21 @@ class Game {
   renderGame() {
     const ctx = canvasManager.ctx;
     
-    // Clear canvas
     canvasManager.clear();
     
-    // Draw map (from buffer)
     canvasManager.drawMap(MAP_LAYOUT, this.gatesOpen);
     canvasManager.renderMapBuffer();
     
-    // Draw yarns
     this.yarns.forEach(yarn => {
       if (!yarn.collected) {
         const x = yarn.x * CONFIG.GAME.TILE_SIZE + 8;
         const y = yarn.y * CONFIG.GAME.TILE_SIZE + 8;
         const imgName = yarn.type === 'special' ? 'yarn_gold' : 'yarn_blue';
-        assetManager.drawImage(ctx, imgName, x, y, 12, 12);  // Adjusted size for smaller tiles
+        assetManager.drawImage(ctx, imgName, x, y, 12, 12);
       }
     });
     
-    // Draw player
     if (this.player.invincible > 0) {
-      // Flashing effect
       const alpha = 0.3 + Math.sin(this.frameCounter * 0.3) * 0.3;
       ctx.fillStyle = `rgba(255,255,0,${alpha})`;
       ctx.fillRect(this.player.x, this.player.y, CONFIG.GAME.TILE_SIZE, CONFIG.GAME.TILE_SIZE);
@@ -1476,38 +1192,35 @@ class Game {
       CONFIG.GAME.TILE_SIZE
     );
     
-    // Draw enemies
-    if (this.gatesOpen) {
-      this.enemies.forEach(enemy => {
-        let enemyAlpha = 1;
-        if (this.player.invincible > 0) {
-          // Make enemies semi-transparent when player is invincible
-          enemyAlpha = 0.5 + Math.sin(this.frameCounter * 0.2) * 0.2;
-        }
-        
-        ctx.save();
-        ctx.globalAlpha = enemyAlpha;
-        assetManager.drawImage(
-          ctx,
-          'cat_enemy',
-          enemy.x,
-          enemy.y,
-          CONFIG.GAME.TILE_SIZE,
-          CONFIG.GAME.TILE_SIZE
-        );
-        ctx.restore();
-      });
-    }
+    // --- THIS IS THE MODIFIED BLOCK ---
+    // The "if (this.gatesOpen)" wrapper has been removed so enemies are drawn from the start.
+    this.enemies.forEach(enemy => {
+      let enemyAlpha = 1;
+      if (this.player.invincible > 0) {
+        // Make enemies semi-transparent when player is invincible
+        enemyAlpha = 0.5 + Math.sin(this.frameCounter * 0.2) * 0.2;
+      }
+      
+      ctx.save();
+      ctx.globalAlpha = enemyAlpha;
+      assetManager.drawImage(
+        ctx,
+        'cat_enemy',
+        enemy.x,
+        enemy.y,
+        CONFIG.GAME.TILE_SIZE,
+        CONFIG.GAME.TILE_SIZE
+      );
+      ctx.restore();
+    });
+    // --- END OF MODIFIED BLOCK ---
     
-    // Draw particles
     particleSystem.render(ctx);
     
-    // Draw UI overlay
     this.renderUI(ctx);
   }
   
   renderUI(ctx) {
-    // Draw score and level (styled text)
     ctx.save();
     ctx.fillStyle = '#000';
     ctx.font = 'bold 16px Arial';
@@ -1522,7 +1235,6 @@ class Game {
     ctx.strokeText(levelText, 8, 40);
     ctx.fillText(levelText, 8, 40);
     
-    // Draw invincibility timer
     if (this.player.invincible > 0) {
       const invText = `Invincible: ${Math.ceil(this.player.invincible / 60)}s`;
       ctx.strokeText(invText, canvas.width - 120, 20);
@@ -1554,7 +1266,6 @@ class Game {
   }
 }
 
-// === Input Manager ===
 class InputManager {
   constructor(game) {
     this.game = game;
@@ -1589,7 +1300,6 @@ class InputManager {
         this.game.stateMachine.handleInput(keyMap[e.key]);
       }
       
-      // Pause handling
       if ((e.key === ' ' || e.key === 'Escape')) {
         e.preventDefault();
         if (this.game.stateMachine.currentState === GAME_STATE.PLAYING) {
@@ -1638,7 +1348,6 @@ class InputManager {
   }
   
   setupVirtualDPad() {
-    // Only create D-Pad on touch devices
     if (!('ontouchstart' in window)) return;
     
     const dpad = document.createElement('div');
@@ -1677,7 +1386,6 @@ class InputManager {
   }
 }
 
-// === Main Game Loop ===
 let game;
 let lastTime = 0;
 const TARGET_FPS = 60;
@@ -1695,16 +1403,12 @@ function gameLoop(currentTime) {
   requestAnimationFrame(gameLoop);
 }
 
-// === Initialize and Start ===
 window.addEventListener('load', async () => {
-  // Wait for assets to load
   await assetManager.loadImages();
   await soundManager.initialize();
   
-  // Create game instance
   game = new Game();
   
-  // Start game loop
   requestAnimationFrame(gameLoop);
 });
 
