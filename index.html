@@ -315,11 +315,15 @@ class SoundManager {
     });
   }
 
-  toggleMute() {
+toggleMute(forceMute = null) {
+  if (typeof forceMute === 'boolean') {
+    this.muted = forceMute;
+  } else {
     this.muted = !this.muted;
-    if (this.muted) {
-      Object.values(this.sounds).forEach(sound => sound.pause());
-    }
+  }
+
+  if (this.muted) {
+    Object.values(this.sounds).forEach(sound => sound.pause());
   }
 }
 
@@ -534,9 +538,14 @@ const assetManager = new AssetManager();
 const particleSystem = new ParticleSystem();
 const highScoreManager = new HighScoreManager();
 
-window.addEventListener('load', async () => {
-  await assetManager.loadImages();
-  await soundManager.initialize();
+window.addEventListener('message', (event) => {
+  if (event.data.type === 'ARCADE_AUDIO_CONTROL') {
+    if (event.data.muted) {
+      soundManager.toggleMute(true);  // Force mute
+    } else {
+      soundManager.toggleMute(false); // Force unmute
+    }
+  }
 });
 
 // END OF PART 1
