@@ -538,14 +538,24 @@ const assetManager = new AssetManager();
 const particleSystem = new ParticleSystem();
 const highScoreManager = new HighScoreManager();
 
-window.addEventListener('message', (event) => {
-  if (event.data.type === 'ARCADE_AUDIO_CONTROL') {
-    if (event.data.muted) {
-      soundManager.toggleMute(true);  // Force mute
-    } else {
-      soundManager.toggleMute(false); // Force unmute
+window.addEventListener('load', async () => {
+  await assetManager.loadImages();
+  await soundManager.initialize();
+  
+  // Add the audio control listener AFTER soundManager is initialized
+  window.addEventListener('message', (event) => {
+    if (event.data.type === 'ARCADE_AUDIO_CONTROL') {
+      if (event.data.muted) {
+        soundManager.toggleMute(true);  // Force mute
+      } else {
+        soundManager.toggleMute(false); // Force unmute
+      }
     }
-  }
+  });
+  
+  game = new Game();
+  
+  requestAnimationFrame(gameLoop);
 });
 
 // END OF PART 1
